@@ -336,9 +336,21 @@ function showCfg(){document.getElementById('cfgPanel').style.display='block';doc
 function cfgMsg(m,e){const el=document.getElementById('cfgSt');el.style.display='block';el.style.color=e?'var(--red)':'var(--mint)';el.textContent=m}
 function sendSheet(r){
   if(!SURL)return;
-  fetch(SURL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({timestamp:r.timestamp,lote:r.lote,producto:r.producto,vence:r.vence,etapa:r.etapa,analista:r.analista,ph:r.ph,temp:r.temp,humedad:r.humedad,peso:r.peso,dureza:r.dureza,checks:r.checks,status:r.status,numFotos:r.fotos?r.fotos.length:0,obs:r.obs})
-  }).then(()=>toast('☁️ Enviado a Sheets')).catch(()=>toast('⚠️ Error Sheets, guardado local',true));
+  // Prepare photos as base64 (without data:image/jpeg;base64, prefix)
+  const photoData = (r.fotos||[]).map(p => p.replace(/^data:image\/\w+;base64,/, ''));
+  
+  const payload = {
+    timestamp:r.timestamp, lote:r.lote, producto:r.producto, vence:r.vence,
+    etapa:r.etapa, analista:r.analista, ph:r.ph, temp:r.temp,
+    humedad:r.humedad, peso:r.peso, dureza:r.dureza,
+    checks:r.checks, status:r.status, obs:r.obs,
+    numFotos: photoData.length,
+    photos: photoData
+  };
+  
+  fetch(SURL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify(payload)
+  }).then(()=>toast('☁️ Enviado a Sheets + Drive')).catch(()=>toast('⚠️ Error Sheets, guardado local',true));
 }
 function loadSheet(){
   if(!SURL)return;
@@ -471,9 +483,39 @@ function startV(){
 }
 function stopV(){if(recog)try{recog.stop()}catch(e){}isRec=false;document.getElementById('vBtn').classList.remove('rec');document.getElementById('vLbl').textContent='Toca para dictar el control';document.getElementById('liveBadge').style.display='none'}
 
-// ========== PHOTOS ==========
+// ========== PHOTOS (with compression) ==========
 function takeP(s){curSlot=s;document.getElementById('camIn').click()}
-function gotP(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{fotos[curSlot]=ev.target.result;renderP();toast('📸 Foto capturada')};r.readAsDataURL(f);e.target.value=''}
+function gotP(e){
+  const f=e.target.files[0];if(!f)return;
+  compressPhoto(f, 800, 0.6).then(compressed=>{
+    fotos[curSlot]=compressed;
+    renderP();
+    toast('📸 Foto capturada (~'+ Math.round(compressed.length*0.75/1024) +'KB)');
+  });
+  e.target.value='';
+}
+function compressPhoto(file, maxSize, quality) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let w = img.width, h = img.height;
+        if (w > maxSize || h > maxSize) {
+          if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+          else { w = Math.round(w * maxSize / h); h = maxSize; }
+        }
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 function renderP(){const g=document.getElementById('pGrid');g.innerHTML='';for(let i=0;i<3;i++){const s=document.createElement('div');s.className='pslot';if(fotos[i])s.innerHTML=`<img src="${fotos[i]}"/><button class="rx" onclick="event.stopPropagation();rmP(${i})">✕</button>`;else s.innerHTML=`<span class="pi">📷</span><span class="pt">Foto ${i+1}</span>`;s.onclick=()=>takeP(i);g.appendChild(s)}}
 function rmP(i){fotos[i]=null;renderP()}
 
@@ -519,6 +561,8 @@ function openR(i){
   h+=`</div>`;
   if(r.checks&&r.checks.length>0){h+=`<div class="msec"><div class="msec-t">Verificaciones ✅</div><div class="mtags">${r.checks.map(c=>`<span class="mtag">${c}</span>`).join('')}</div></div>`}
   if(r.fotos&&r.fotos.length>0){h+=`<div class="msec"><div class="msec-t">📸 Evidencia (${r.fotos.length})</div><div class="mphotos">${r.fotos.map(p=>`<img src="${p}"/>`).join('')}</div></div>`}
+  else if(r.photoLinks&&r.photoLinks.length>0&&r.photoLinks[0]){h+=`<div class="msec"><div class="msec-t">📸 Fotos en Drive (${r.photoLinks.length})</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">${r.photoLinks.map((l,i)=>`<a href="${l}" target="_blank" style="padding:8px 14px;border-radius:50px;font-size:12px;font-weight:600;background:var(--mint-g);color:var(--mint);border:1px solid rgba(45,212,168,0.2);text-decoration:none">📷 Foto ${i+1}</a>`).join('')}</div></div>`}
+  else if(r.numFotos>0){h+=`<div class="msec"><div class="msec-t">📸 Fotos: ${r.numFotos}</div></div>`}
   if(r.obs){h+=`<div class="msec"><div class="msec-t">Observaciones</div><div class="mobs">${r.obs}</div></div>`}
   document.getElementById('mBody').innerHTML=h;
   document.getElementById('mover').classList.add('open');document.body.style.overflow='hidden';
