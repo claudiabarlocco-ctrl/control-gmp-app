@@ -125,8 +125,12 @@ body{font-family:var(--f);background:var(--bg);color:var(--text);min-height:100v
       <span class="badge quiz">Quiz Final</span>
     </div>
     <p style="font-size:11px;color:var(--text3)">Duración estimada: 15-20 minutos · 8 módulos + evaluación</p>
+    <div style="margin-top:16px;max-width:300px;margin-left:auto;margin-right:auto">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;text-align:left">👤 Tu nombre completo:</div>
+      <input id="trainName" placeholder="Nombre y Apellido..." style="width:100%;padding:12px;border-radius:10px;border:2px solid var(--border);font-family:var(--f);font-size:14px;font-weight:600;text-align:center;outline:none" onfocus="this.style.borderColor='var(--mint)'" onblur="this.style.borderColor='var(--border)'" />
+    </div>
   </div>
-  <div class="nav-btns"><div></div><button class="nav-btn next" onclick="goStep(1)">Comenzar →</button></div>
+  <div class="nav-btns"><div></div><button class="nav-btn next" onclick="startTraining()">Comenzar →</button></div>
 </div>
 
 <!-- ============ SECCIÓN 1: QUÉ ES EL CONTROL EN PROCESO ============ -->
@@ -443,23 +447,40 @@ body{font-family:var(--f);background:var(--bg);color:var(--text);min-height:100v
 </div>
 
 <script>
+const SURL='https://script.google.com/macros/s/AKfycbxmayMAPlLCrozmZRM3gLSf5MgcWO9lC5y_ayR0DkRdi_hHYaoLRI43OgIJ9d7nTPDGug/exec';
 const STEPS=['Inicio','¿Qué es?','Ingreso','Pantalla','Control','Pesos/pH','Checks/Fotos','Voz','Quiz'];
-let curStep=0;
+let curStep=0, trainUser='';
 const answered=new Array(8).fill(null);
+const questions=[
+  '¿Cada cuánto se realizan los controles?',
+  '¿Cuántos envases se pesan?',
+  'Peso individual fuera de rango, promedio OK',
+  '¿Cuántas fotos por control?',
+  '¿Qué navegador para voz?',
+  '¿Qué datos del desvío?',
+  'Al cambiar de máquina...',
+  'Rango Strunk 900ml'
+];
 const feedback=[
-  ['Los controles se realizan cada 2 horas en cada línea activa.','❌ Incorrecto.'],
-  ['Se pesan 5 envases al azar en cada control.','❌ Son 5 envases.'],
-  ['Todo desvío debe reportarse, aunque el promedio esté bien.','❌ Los desvíos individuales también se reportan.'],
-  ['Son 2 fotos obligatorias: sticker de caja y lote/vencimiento.','❌ Son 2 fotos en cada control.'],
-  ['El dictado por voz funciona en Google Chrome.','❌ Solo funciona en Chrome.'],
-  ['Hay que registrar descripción, cantidad, reproceso y foto.','❌ Se necesitan todos los datos del desvío.'],
-  ['La app permite cambiar de máquina y autocompleta datos previos.','❌ No hace falta cerrar lotes.'],
-  ['El rango de la Strunk 900ml es 900g a 910g con objetivo 905g.','❌ Revisá la tabla de especificaciones.']
+  ['Los controles se realizan cada 2 horas en cada línea activa.','Incorrecto.'],
+  ['Se pesan 5 envases al azar en cada control.','Son 5 envases.'],
+  ['Todo desvío debe reportarse, aunque el promedio esté bien.','Los desvíos individuales también se reportan.'],
+  ['Son 2 fotos obligatorias: sticker de caja y lote/vencimiento.','Son 2 fotos en cada control.'],
+  ['El dictado por voz funciona en Google Chrome.','Solo funciona en Chrome.'],
+  ['Hay que registrar descripción, cantidad, reproceso y foto.','Se necesitan todos los datos del desvío.'],
+  ['La app permite cambiar de máquina y autocompleta datos previos.','No hace falta cerrar lotes.'],
+  ['El rango de la Strunk 900ml es 900g a 910g con objetivo 905g.','Revisá la tabla de especificaciones.']
 ];
 
-// Build nav
 const nav=document.getElementById('stepNav');
 STEPS.forEach((s,i)=>{const d=document.createElement('div');d.className='step-dot'+(i===0?' active':'');d.textContent=s;d.onclick=()=>goStep(i);nav.appendChild(d)});
+
+function startTraining(){
+  const name=document.getElementById('trainName').value.trim();
+  if(!name){alert('Ingresá tu nombre completo para comenzar');return}
+  trainUser=name;
+  goStep(1);
+}
 
 function goStep(n){
   curStep=n;
@@ -475,11 +496,11 @@ function answer(qIdx,btn,correct){
   const opts=btn.parentElement.querySelectorAll('.quiz-opt');
   opts.forEach(o=>o.classList.add('disabled'));
   btn.classList.add(correct?'correct':'wrong');
-  if(!correct)opts.forEach(o=>{if(!o.classList.contains('wrong')){}});// find correct
+  // Highlight correct answer if wrong
+  if(!correct){opts.forEach(o=>{if(o.getAttribute('onclick').includes(',true)'))o.classList.add('correct')})}
   const fb=document.getElementById('fb'+qIdx);
   fb.textContent=(correct?'✅ ':'❌ ')+feedback[qIdx][correct?0:1];
   fb.className='quiz-feedback show '+(correct?'ok':'no');
-  // Check if all answered
   if(answered.every(a=>a!==null))document.getElementById('finishBtn').disabled=false;
 }
 
@@ -491,9 +512,36 @@ function showScore(){
   const pass=pct>=70;
   document.getElementById('scoreLbl').textContent=correct+'/'+answered.length+' respuestas correctas';
   document.getElementById('scoreMsg').innerHTML=pass
-    ?'<div style="font-size:36px;margin-bottom:8px">🎉</div><h3 style="color:var(--mint)">¡Aprobado!</h3><p>Estás listo/a para realizar controles en proceso. Recordá siempre seguir los procedimientos GMP.</p>'
-    :'<div style="font-size:36px;margin-bottom:8px">📖</div><h3 style="color:var(--red)">No aprobado</h3><p>Necesitás 70% para aprobar. Revisá los módulos y volvé a intentar.</p>';
+    ?'<div style="font-size:36px;margin-bottom:8px">🎉</div><h3 style="color:var(--mint)">¡Aprobado!</h3><p>Estás listo/a para realizar controles en proceso. Recordá siempre seguir los procedimientos GMP.</p><p style="font-size:11px;color:var(--text3);margin-top:8px">✅ Resultado guardado en el sistema</p>'
+    :'<div style="font-size:36px;margin-bottom:8px">📖</div><h3 style="color:var(--red)">No aprobado</h3><p>Necesitás 70% para aprobar. Revisá los módulos y volvé a intentar.</p><p style="font-size:11px;color:var(--text3);margin-top:8px">⚠️ Resultado guardado en el sistema</p>';
   document.getElementById('scoreCard').scrollIntoView({behavior:'smooth'});
+  
+  // Send results to Google Sheets
+  sendResults(correct, pct, pass);
+}
+
+function sendResults(correct, pct, pass){
+  const payload={
+    type: 'training',
+    analista: trainUser,
+    fecha: new Date().toLocaleString('es-ES'),
+    puntaje: pct,
+    correctas: correct,
+    total: answered.length,
+    aprobado: pass ? 'SÍ' : 'NO',
+    respuestas: answered.map((a,i) => questions[i] + ': ' + (a ? '✅' : '❌')).join(' | ')
+  };
+  
+  fetch(SURL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {'Content-Type': 'text/plain'},
+    body: JSON.stringify(payload)
+  }).then(() => {
+    console.log('Resultados enviados');
+  }).catch(err => {
+    console.error('Error enviando resultados:', err);
+  });
 }
 </script>
 </body>
