@@ -163,9 +163,54 @@ const SPECS={
   'Alcoholes':[{pres:'900 ml',obj:774,min:774,max:800}],
   'Bidonera':[{pres:'1 L',obj:970,min:970,max:1000}],
   'Alwid':[{pres:'1.25 L',obj:1275,min:1275,max:1289}],
-  'Cleanway':[{pres:'5 L Detergente',obj:5105,min:5105,max:5156},{pres:'5 L Suavizante',obj:5000,min:5000,max:5100},{pres:'4 L',obj:4224,min:4224,max:4300},{pres:'5 L Limpiadores',obj:5000,min:5000,max:5100}]
+  'Cleanway':[{pres:'5 L Detergente',obj:5105,min:5105,max:5156},{pres:'5 L Suavizante',obj:5000,min:5000,max:5100},{pres:'4 L',obj:4224,min:4224,max:4300},{pres:'5 L Limpiadores',obj:5000,min:5000,max:5100}],
+  'Limpiadores':[{pres:'1 L',obj:0,min:0,max:0},{pres:'2 L',obj:0,min:0,max:0}]
 };
 const MACHINES=Object.keys(SPECS);
+
+// Defects checklist for Limpiadores line
+const LIMP_DEFECTS=[
+  'Ausencia de Trazabilidad',
+  'Stickers con fecha incorrecta',
+  'Producto sin etiqueta',
+  'Etiqueta equivocada',
+  'Etiqueta rota',
+  'Etiqueta con defectos de impresión',
+  'Etiqueta descentrada',
+  'Etiqueta con arrugas/mal pegada/burbujas',
+  'Etiqueta despegada/abierta en costura',
+  'Etiquetas solapadas/superpuestas',
+  'Etiqueta sucia / envase sucio',
+  'Envase perforado',
+  'Envase con bajo nivel de llenado',
+  'Envase sucio (tapas)',
+  'Envase golpeado/hundido',
+  'Envase con rebabas',
+  'Envase deformado en panel',
+  'Color fuera de estándar',
+  'Botella sin tapa',
+  'Fuga de producto por tapa',
+  'Tapa rayada',
+  'Tapa rota',
+  'Tapa mal colocada (con gorro)',
+  'Tapa sucia',
+  'Tapa floja',
+  'Fuga por rotura de envases',
+  'Ausencia etiquetas código en fundas',
+  'Pallet con productos mezclados',
+  'Fundas mal armadas (desalineadas)',
+  'Paletizado incorrecto',
+  'Picos de pallets sin film stretch',
+  'Poco film stretch parte superior',
+  'Cajas mal cerradas',
+  'Cajas deformadas (tensión film)',
+  'Esquinas de pallet sin film stretch',
+  'Pallets defectuosos/tacos rotos',
+  'Estiba de pallets defectuosas',
+  'Incoherencias en vencimientos de packs',
+  'Producto turbio fuera de especificación',
+  'Producto con sedimentación'
+];
 </script>
 
 <!-- LOGIN -->
@@ -239,6 +284,8 @@ const MACHINES=Object.keys(SPECS);
     </div>
     <div id="specI" class="ri" style="display:none;background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:8px;margin-bottom:8px"></div>
 
+    <!-- STANDARD CONTROLS (hidden for Limpiadores) -->
+    <div id="stdControls">
     <!-- pH -->
     <div class="fs"><div class="st">pH (opcional)</div>
       <div class="fg"><div class="fd"><span class="fl">Valor pH</span><input class="fi" id="cPH" placeholder="—" inputmode="decimal"/></div></div>
@@ -264,6 +311,23 @@ const MACHINES=Object.keys(SPECS);
         <div class="ci" onclick="tgC(this)"><div class="ck">✓</div><span class="ct">Etiqueta</span></div>
         <div class="ci" onclick="tgC(this)"><div class="ck">✓</div><span class="ct">Apar. Granel</span></div>
         <div class="ci" onclick="tgC(this)"><div class="ck">✓</div><span class="ct">Limp. Línea</span></div>
+      </div>
+    </div>
+    </div>
+
+    <!-- LIMPIADORES DEFECTS (hidden by default, shown only for Limpiadores) -->
+    <div id="limpControls" style="display:none">
+      <div class="fs"><div class="st red">🔍 Defectos Detectados — Limpiadores</div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:8px">Marcá los defectos encontrados. Si no hay defectos, tocá el botón verde.</div>
+        <button onclick="limpSinDef()" style="width:100%;padding:10px;border-radius:var(--r);border:2px solid var(--mint);background:var(--mint-g);color:var(--mint);font-family:var(--f);font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px">✅ Sin defectos — Todo conforme</button>
+        <div id="limpDefList"></div>
+      </div>
+      <div class="fs">
+        <div class="fg">
+          <div class="fd"><span class="fl">Uds retiradas</span><input class="fi" id="cLimpUds" placeholder="Total unidades retiradas" inputmode="numeric"/></div>
+          <div class="fd"><span class="fl">Motivo retiro</span><input class="fi" id="cLimpMotivo" placeholder="Motivo del retiro..."/></div>
+          <div class="fd"><span class="fl">Acción correctiva</span><input class="fi" id="cLimpAccion" placeholder="Acción tomada..."/></div>
+        </div>
       </div>
     </div>
 
@@ -358,10 +422,30 @@ function onMaq(){
   const ps=document.getElementById('cPres');ps.innerHTML='<option value="">Seleccionar...</option>';
   curSpec=null;document.getElementById('specI').style.display='none';
   if(!m)return;
-  (SPECS[m]||[]).forEach(p=>{const o=document.createElement('option');o.value=p.pres;o.textContent=p.pres+' ('+p.obj+'g)';ps.appendChild(o)});
+  
+  // Toggle standard vs Limpiadores controls
+  const isLimp=m==='Limpiadores';
+  document.getElementById('stdControls').style.display=isLimp?'none':'block';
+  document.getElementById('limpControls').style.display=isLimp?'block':'none';
+  
+  if(isLimp){
+    // Populate defects checklist
+    const dl=document.getElementById('limpDefList');
+    if(!dl.children.length){
+      dl.innerHTML=LIMP_DEFECTS.map((d,i)=>`<div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px;margin-bottom:4px;display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="ld${i}" style="width:16px;height:16px;accent-color:var(--red);flex-shrink:0">
+        <label for="ld${i}" style="font-size:10px;color:var(--text2);flex:1;cursor:pointer">${d}</label>
+        <input id="ldq${i}" placeholder="Uds" inputmode="numeric" style="width:50px;background:var(--s2);border:1px solid var(--border);border-radius:5px;padding:5px;color:var(--text);font-family:var(--m);font-size:10px;text-align:center;outline:none">
+      </div>`).join('');
+    }
+    ps.innerHTML='<option value="">Seleccionar...</option>';
+    (SPECS[m]||[]).forEach(p=>{const o=document.createElement('option');o.value=p.pres;o.textContent=p.pres;ps.appendChild(o)});
+  } else {
+    (SPECS[m]||[]).forEach(p=>{const o=document.createElement('option');o.value=p.pres;o.textContent=p.pres+' ('+p.obj+'g)';ps.appendChild(o)});
+  }
   // Autocomplete from cache
   if(maqCache[m]){const c=maqCache[m];['cLote','cOrden','cVence','cGranel','cCodPT'].forEach(id=>{if(c[id])document.getElementById(id).value=c[id]});
-    if(c.pres){ps.value=c.pres;onPres()}
+    if(c.pres&&!isLimp){ps.value=c.pres;onPres()}
     toast('📋 Datos autocompletados de '+m)}
 }
 function onPres(){
@@ -394,17 +478,29 @@ document.querySelectorAll('#cChk .ci').forEach(c=>c.classList.remove('on'));
 fotos=[null,null,null];renP();hasDev=false;isRep=false;curSpec=null;
 ['dY','dN','rY','rN'].forEach(id=>document.getElementById(id).className='dt');
 document.getElementById('dF').classList.remove('vis');document.getElementById('specI').style.display='none';
-document.getElementById('tBox').style.display='none'}
+document.getElementById('tBox').style.display='none';
+document.getElementById('stdControls').style.display='block';
+document.getElementById('limpControls').style.display='none';
+// Reset Limpiadores fields
+const dl=document.getElementById('limpDefList');if(dl)dl.innerHTML='';
+['cLimpUds','cLimpMotivo','cLimpAccion'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''})}
 
 function saveCtrl(){
   const maq=document.getElementById('cMaq').value;if(!maq){toast('Elegí máquina',true);return}
   const lote=document.getElementById('cLote').value;if(!lote){toast('Ingresá N° Lote',true);return}
-  const pesos=[1,2,3,4,5].map(i=>document.getElementById('cP'+i).value);
+  const isLimp=maq==='Limpiadores';
+  const pesos=isLimp?['','','','','']:[1,2,3,4,5].map(i=>document.getElementById('cP'+i).value);
   const vs=pesos.map(Number).filter(v=>!isNaN(v)&&v>0);
   const prom=vs.length?(vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(2):'';
   const pres=document.getElementById('cPres').value;
-  const c={hora:document.getElementById('cHora').value,maquina:maq,presentacion:pres,lote,orden:document.getElementById('cOrden').value,vence:document.getElementById('cVence').value,granel:document.getElementById('cGranel').value,codPT:document.getElementById('cCodPT').value,ph:document.getElementById('cPH').value,pesos,promedio:prom,checks:[...document.querySelectorAll('#cChk .ci.on .ct')].map(l=>l.textContent),hasDev,devDesc:hasDev?document.getElementById('cDevD').value:'',devQty:hasDev?document.getElementById('cDevQ').value:'',isRep:hasDev?isRep:false,fotos:fotos.filter(Boolean),obs:document.getElementById('cObs').value,timestamp:new Date().toLocaleString('es-ES')};
-  // Cache machine data for autocomplete
+  let limpDefects=[],limpUds='',limpMotivo='',limpAccion='';
+  if(isLimp){
+    LIMP_DEFECTS.forEach((d,i)=>{const cb=document.getElementById('ld'+i);const qty=document.getElementById('ldq'+i);if(cb&&cb.checked)limpDefects.push(d+(qty&&qty.value?' ('+qty.value+')':''))});
+    limpUds=document.getElementById('cLimpUds')?document.getElementById('cLimpUds').value:'';
+    limpMotivo=document.getElementById('cLimpMotivo')?document.getElementById('cLimpMotivo').value:'';
+    limpAccion=document.getElementById('cLimpAccion')?document.getElementById('cLimpAccion').value:'';
+  }
+  const c={hora:document.getElementById('cHora').value,maquina:maq,presentacion:pres,lote,orden:document.getElementById('cOrden').value,vence:document.getElementById('cVence').value,granel:document.getElementById('cGranel').value,codPT:document.getElementById('cCodPT').value,ph:isLimp?'':document.getElementById('cPH').value,pesos,promedio:prom,checks:isLimp?[]:([...document.querySelectorAll('#cChk .ci.on .ct')].map(l=>l.textContent)),hasDev,devDesc:hasDev?document.getElementById('cDevD').value:'',devQty:hasDev?document.getElementById('cDevQ').value:'',isRep:hasDev?isRep:false,fotos:fotos.filter(Boolean),obs:document.getElementById('cObs').value,timestamp:new Date().toLocaleString('es-ES'),isLimp,limpDefects,limpUds,limpMotivo,limpAccion};
   maqCache[maq]={pres,cLote:lote,cOrden:c.orden,cVence:c.vence,cGranel:c.granel,cCodPT:c.codPT};
   ctrls.push(c);saveLocal();sendCtrl(c,ctrls.length);
   document.getElementById('cForm').style.display='none';document.getElementById('newBtn').style.display='block';
@@ -415,14 +511,19 @@ function renderTL(){
   const el=document.getElementById('timeline');
   if(!ctrls.length){el.innerHTML='<div style="text-align:center;color:var(--text3);font-size:9px;padding:12px;border:1px dashed var(--border);border-radius:var(--r);margin-bottom:8px">Sin controles en este turno</div>';return}
   el.innerHTML=ctrls.map((c,i)=>{
-    const tags=c.checks.map(ch=>`<span class="ti-tag">${ch}</span>`).join('');
+    const tags=(c.checks||[]).map(ch=>`<span class="ti-tag">${ch}</span>`).join('');
     const dev=c.hasDev?`<span class="ti-tag red">⚠️ ${c.devQty||'?'}u</span>`:'';
     const ph=c.ph?' · pH:'+c.ph:'';
-    return `<div class="ti" onclick="viewC(${i})"><div class="ti-h"><span class="ti-t">🕐 ${c.hora||'--:--'}</span><span class="ti-m">${c.maquina} · ${c.presentacion||''}</span></div><div class="ti-d">Lote: ${c.lote} · Pesos: ${c.pesos.filter(p=>p).join('|')||'—'} → <b>${c.promedio||'—'}</b>${ph}</div><div class="ti-tags">${tags}${dev}</div></div>`}).join('')}
+    const isL=c.isLimp||c.maquina==='Limpiadores';
+    const dataLine=isL
+      ?`Lote: ${c.lote} · Defectos: ${(c.limpDefects||[]).length||'0'}`
+      :`Lote: ${c.lote} · Pesos: ${(c.pesos||[]).filter(p=>p).join('|')||'—'} → <b>${c.promedio||'—'}</b>${ph}`;
+    const limpTags=isL?(c.limpDefects||[]).map(d=>`<span class="ti-tag red">${d}</span>`).join(''):'';
+    return `<div class="ti" onclick="viewC(${i})"><div class="ti-h"><span class="ti-t">🕐 ${c.hora||'--:--'}</span><span class="ti-m">${c.maquina} · ${c.presentacion||''}</span></div><div class="ti-d">${dataLine}</div><div class="ti-tags">${tags}${limpTags}${dev}</div></div>`}).join('')}
 
 // SHEETS
 function sendCtrl(c,num){if(!SURL)return;const pd=(c.fotos||[]).map(p=>p.replace(/^data:image\/\w+;base64,/,''));
-fetch(SURL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({type:'control',fecha:shift.fecha,analista:USER,orden:c.orden,lote:c.lote,vence:c.vence,maquina:c.maquina,presentacion:c.presentacion,granel:c.granel,codPT:c.codPT,controlNum:num,hora:c.hora,pesos:c.pesos,promedio:c.promedio,ph:c.ph,checks:c.checks,hasDev:c.hasDev,devDesc:c.devDesc,devQty:c.devQty,isRep:c.isRep,obs:c.obs,timestamp:c.timestamp,numFotos:pd.length,photos:pd})}).catch(()=>toast('⚠️ Error',true))}
+fetch(SURL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({type:'control',fecha:shift.fecha,analista:USER,orden:c.orden,lote:c.lote,vence:c.vence,maquina:c.maquina,presentacion:c.presentacion,granel:c.granel,codPT:c.codPT,controlNum:num,hora:c.hora,pesos:c.pesos,promedio:c.promedio,ph:c.ph,checks:c.checks,hasDev:c.hasDev,devDesc:c.devDesc,devQty:c.devQty,isRep:c.isRep,obs:c.obs,timestamp:c.timestamp,numFotos:pd.length,photos:pd,isLimp:c.isLimp,limpDefects:c.limpDefects,limpUds:c.limpUds,limpMotivo:c.limpMotivo,limpAccion:c.limpAccion})}).catch(()=>toast('⚠️ Error',true))}
 function loadSheet(){if(!SURL)return;fetch(SURL).then(r=>r.json()).then(d=>{if(d.status==='ok'&&d.records){allR=d.records;allR.forEach(r=>{r.promedio=r.promedio!=null?String(r.promedio):'';r.ph=r.ph!=null?String(r.ph):'';r.maquina=r.maquina?String(r.maquina).trim():'';r.presentacion=r.presentacion?String(r.presentacion).trim():'';r.lote=r.lote?String(r.lote).trim():'';r.analista=r.analista?String(r.analista).trim():'';if(r.pesos)r.pesos=r.pesos.map(p=>p!=null?String(p):'')});renderDash();toast('📊 '+allR.length+' registros')}}).catch(()=>{toast('⚠️ Error carga',true)})}
 
 // PHOTOS
@@ -432,6 +533,16 @@ function compP(file,mx,q){return new Promise(res=>{const rd=new FileReader();rd.
 function renP(){const lb=[['📦','Sticker'],['🏷️','Lote/Vence'],['📷','Desvío']];for(let i=0;i<3;i++){const b=document.getElementById('pB'+i);if(!b)continue;if(fotos[i])b.innerHTML=`<img src="${fotos[i]}"/><button class="rx" onclick="event.stopPropagation();rmP(${i})">✕</button>`;else b.innerHTML=`<span style="font-size:16px">${lb[i][0]}</span><span style="font-size:7px;color:var(--text3)">${lb[i][1]}</span>`}}
 function rmP(i){fotos[i]=null;renP()}
 function tgC(e){e.classList.toggle('on')}
+function limpSinDef(){
+  // Uncheck all defects and clear quantities = no defects found
+  LIMP_DEFECTS.forEach((d,i)=>{
+    const cb=document.getElementById('ld'+i);if(cb)cb.checked=false;
+    const qty=document.getElementById('ldq'+i);if(qty)qty.value='';
+  });
+  // Clear retiradas fields
+  ['cLimpUds','cLimpMotivo','cLimpAccion'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});
+  toast('✅ Sin defectos registrado');
+}
 function setDev(v){hasDev=!!v;document.getElementById('dY').className='dt'+(v?' ay':'');document.getElementById('dN').className='dt'+(v?'':' an');document.getElementById('dF').classList.toggle('vis',!!v)}
 function setRep(v){isRep=!!v;document.getElementById('rY').className='dt'+(v?' ay':'');document.getElementById('rN').className='dt'+(v?'':' an')}
 
