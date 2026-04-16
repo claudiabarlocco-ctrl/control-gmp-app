@@ -120,14 +120,48 @@ select.fi{background:var(--s2);border:1px solid var(--border);border-radius:6px;
 
 <script>
 const SPECS={
-  'Strunk':[{pres:'900 ml',obj:905,min:900,max:910},{pres:'1.8 L',obj:1805,min:1800,max:1830}],
-  'Alfi':[{pres:'3 L Suavizante',obj:3000,min:2918,max:3010},{pres:'3 L Detergente',obj:3050,min:3048,max:3140},{pres:'750 ml',obj:765,min:765,max:790}],
+  'Elf':[
+    {pres:'280 ml Det LV',obj:300,min:290,max:310},
+    {pres:'300 ml Det LV',obj:318,min:305,max:330},
+    {pres:'500 ml Det LV',obj:525,min:510,max:540},
+    {pres:'600 ml Det LV',obj:625,min:610,max:640},
+    {pres:'640 ml Det LV',obj:670,min:655,max:685},
+    {pres:'900 ml Det LV/Manos',obj:920,min:910,max:930},
+    {pres:'1.1 L Det LV',obj:1130,min:1120,max:1140},
+    {pres:'1.25 L Det LV',obj:1285,min:1275,max:1295},
+    {pres:'1.35 L Det LV',obj:1385,min:1375,max:1395},
+    {pres:'500 ml Det Ropa Diluir',obj:610,min:600,max:620}
+  ],
+  'Strunk':[
+    {pres:'900 ml Limpiador',obj:900,min:890,max:910},
+    {pres:'1.8 L Limpiador',obj:1800,min:1790,max:1810}
+  ],
+  'Alfi':[
+    {pres:'3 L Suavizante',obj:2980,min:2910,max:3050},
+    {pres:'5 L Suavizante',obj:4950,min:4850,max:5050},
+    {pres:'3 L Det Ropa',obj:3080,min:3030,max:3130},
+    {pres:'5 L Det Ropa',obj:5100,min:5050,max:5150}
+  ],
+  'Bossar':[
+    {pres:'400 ml Det Pluma',obj:412,min:404,max:420},
+    {pres:'450 ml Det Pluma',obj:462,min:454,max:470},
+    {pres:'800 ml Det Pluma',obj:816,min:808,max:825},
+    {pres:'400 ml Det Conejo',obj:413,min:406,max:420},
+    {pres:'800 ml Det Conejo',obj:820,min:814,max:825},
+    {pres:'600 ml Suav Pluma',obj:599,min:588,max:610},
+    {pres:'700 ml Suav Pluma',obj:698,min:686,max:710},
+    {pres:'900 ml Suav Pluma',obj:896,min:882,max:910},
+    {pres:'450 ml Suav Conejo',obj:446,min:436,max:455},
+    {pres:'900 ml Suav Conejo',obj:892,min:873,max:910},
+    {pres:'400 ml Baños/Antigrasa',obj:410,min:400,max:420},
+    {pres:'500 ml Baños/Antigrasa',obj:510,min:500,max:520},
+    {pres:'400 ml Vidrios',obj:405,min:390,max:420},
+    {pres:'500 ml Vidrios',obj:505,min:490,max:520}
+  ],
   'Hipo 1':[{pres:'1 L',obj:1056,min:1056,max:1087},{pres:'750 ml',obj:792,min:792,max:800}],
   'Hipo 2':[{pres:'2 L',obj:2112,min:2112,max:2175}],
   'Alcoholes':[{pres:'900 ml',obj:774,min:774,max:800}],
-  'Elf':[{pres:'1.25 L',obj:1281,min:1281,max:1319},{pres:'640 ml',obj:650,min:650,max:670},{pres:'1.3 L',obj:1330,min:1330,max:1500},{pres:'1.1 L',obj:1120,min:1120,max:1150}],
   'Bidonera':[{pres:'1 L',obj:970,min:970,max:1000}],
-  'Bossar':[{pres:'900 ml',obj:875,min:875,max:901},{pres:'800 ml',obj:812,min:812,max:937},{pres:'450 ml',obj:454,min:454,max:575},{pres:'500 ml',obj:500,min:500,max:520},{pres:'600 ml',obj:600,min:600,max:621}],
   'Alwid':[{pres:'1.25 L',obj:1275,min:1275,max:1289}],
   'Cleanway':[{pres:'5 L Detergente',obj:5105,min:5105,max:5156},{pres:'5 L Suavizante',obj:5000,min:5000,max:5100},{pres:'4 L',obj:4224,min:4224,max:4300},{pres:'5 L Limpiadores',obj:5000,min:5000,max:5100}]
 };
