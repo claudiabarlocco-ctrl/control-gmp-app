@@ -1235,12 +1235,18 @@ function renderSeccion3(nc) {
 
 function renderSeccion4(nc) {
   const acciones = nc.acciones || [];
+  const tipos = ['Correctiva','Preventiva','Corrección'];
+
   const rows = acciones.map((a,i) => `
-    <tr>
-      <td><span class="tipo-badge tipo-${a.tipo.toLowerCase()}">${a.tipo}</span></td>
+    <tr id="accion_row_${nc.id}_${i}">
+      <td>
+        <select onchange="updateAccion(${nc.id},${i},'tipo',this.value)" style="width:100%;padding:6px;border:1px solid var(--border);font-family:inherit;font-size:11px;">
+          ${tipos.map(t => `<option value="${t}" ${a.tipo===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </td>
       <td><textarea onchange="updateAccion(${nc.id},${i},'descripcion',this.value)" rows="2" style="width:100%;padding:6px;border:1px solid var(--border);font-family:inherit;font-size:11px;">${a.descripcion}</textarea></td>
       <td><input type="date" value="${a.plazo}" onchange="updateAccion(${nc.id},${i},'plazo',this.value)"></td>
-      <td><input type="text" value="${a.responsable}" placeholder="Responsable" onchange="updateAccion(${nc.id},${i},'responsable',this.value)"></td>
+      <td><input type="text" value="${a.responsable}" placeholder="mail@empresa.com" onchange="updateAccion(${nc.id},${i},'responsable',this.value)"></td>
       <td>
         <select onchange="updateAccion(${nc.id},${i},'cumplida',this.value)">
           <option value="">—</option>
@@ -1248,6 +1254,9 @@ function renderSeccion4(nc) {
           <option value="No" ${a.cumplida==='No'?'selected':''}>No</option>
           <option value="En curso" ${a.cumplida==='En curso'?'selected':''}>En curso</option>
         </select>
+      </td>
+      <td>
+        <button onclick="eliminarAccion(${nc.id},${i})" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:18px;line-height:1;padding:4px;" title="Eliminar">×</button>
       </td>
     </tr>
   `).join('');
@@ -1259,22 +1268,23 @@ function renderSeccion4(nc) {
       <span>▾</span>
     </div>
     <div class="section-body">
-      <table class="acciones-table">
+      <table class="acciones-table" id="accionesTable_${nc.id}">
         <thead>
           <tr>
-            <th style="width:100px">Tipo</th>
+            <th style="width:110px">Tipo</th>
             <th>Descripción</th>
             <th style="width:110px">Plazo</th>
-            <th style="width:130px">Responsable</th>
+            <th style="width:160px">Responsable (mail)</th>
             <th style="width:90px">Cumplida</th>
+            <th style="width:36px"></th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
+      <button class="btn btn-secondary btn-sm" style="margin-top:12px" onclick="agregarAccion(${nc.id})">+ Agregar acción</button>
     </div>
   </div>`;
 }
-
 function renderSeccion5(nc) {
   const seguimientos = (nc.seguimientos || []).map((s,i) => `
     <div class="seguimiento-item">
@@ -1515,6 +1525,44 @@ function eliminarNC(ncId) {
   showToast('NC eliminada');
 }
 
+function agregarAccion(ncId) {
+  const nc = db.ncs.find(n => n.id === ncId); if (!nc) return;
+  if (!nc.acciones) nc.acciones = [];
+  nc.acciones.push({ tipo: 'Correctiva', descripcion: '', plazo: '', responsable: '', cumplida: '' });
+  // Re-render only the tbody
+  const tbody = document.querySelector(`#accionesTable_${ncId} tbody`);
+  if (tbody) {
+    const i = nc.acciones.length - 1;
+    const a = nc.acciones[i];
+    const tipos = ['Correctiva','Preventiva','Corrección'];
+    const tr = document.createElement('tr');
+    tr.id = `accion_row_${ncId}_${i}`;
+    tr.innerHTML = `
+      <td><select onchange="updateAccion(${ncId},${i},'tipo',this.value)" style="width:100%;padding:6px;border:1px solid var(--border);font-family:inherit;font-size:11px;">${tipos.map(t=>`<option value="${t}">${t}</option>`).join('')}</select></td>
+      <td><textarea onchange="updateAccion(${ncId},${i},'descripcion',this.value)" rows="2" style="width:100%;padding:6px;border:1px solid var(--border);font-family:inherit;font-size:11px;"></textarea></td>
+      <td><input type="date" onchange="updateAccion(${ncId},${i},'plazo',this.value)"></td>
+      <td><input type="text" placeholder="mail@empresa.com" onchange="updateAccion(${ncId},${i},'responsable',this.value)"></td>
+      <td><select onchange="updateAccion(${ncId},${i},'cumplida',this.value)"><option value="">—</option><option value="Si">Sí</option><option value="No">No</option><option value="En curso">En curso</option></select></td>
+      <td><button onclick="eliminarAccion(${ncId},${i})" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:18px;line-height:1;padding:4px;">×</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function eliminarAccion(ncId, idx) {
+  const nc = db.ncs.find(n => n.id === ncId); if (!nc) return;
+  if (!confirm('¿Eliminar esta acción?')) return;
+  nc.acciones.splice(idx, 1);
+  // Re-render the whole section
+  const det = document.getElementById('ncDetail');
+  const sec4 = det.querySelectorAll('.section-card')[3];
+  if (sec4) {
+    const newSec = document.createElement('div');
+    newSec.innerHTML = renderSeccion4(nc);
+    sec4.replaceWith(newSec.firstElementChild);
+  }
+}
+
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -1722,11 +1770,7 @@ async function crearNC() {
     lote: document.getElementById('nuevaLote').value.trim(),
     analisis: {}, causaRaiz: '', fechaAnalisis: '', analizadoPor: '',
     severidad: '', probabilidad: '', decisionCriticidad: '', impactoOtros: '', iniciaAccion: [],
-    acciones: [
-      { tipo: 'Correctiva', descripcion: '', plazo: '', responsable: '', cumplida: '' },
-      { tipo: 'Preventiva', descripcion: '', plazo: '', responsable: '', cumplida: '' },
-      { tipo: 'Correcci\u00f3n', descripcion: '', plazo: '', responsable: '', cumplida: '' },
-    ],
+    acciones: [],
     seguimientos: [],
     fechaEvaluacion: '', efectividadOk: '', evaluador: '', comentariosEfectividad: '',
     fechaCierre: '', cerradoPor: '', detalleCierre: '',
@@ -1738,6 +1782,44 @@ async function crearNC() {
   const ok = await guardarNC_remoto(nc, true);
   if (ok) { db.ncs.unshift(nc); renderLista(); abrirNC(nc.id); showToast(`${nc.numero} creada \u2714`); }
   else { db.counter--; showToast('Error al crear la NC.'); }
+}
+
+function agregarAccion(ncId) {
+  const nc = db.ncs.find(n => n.id === ncId); if (!nc) return;
+  if (!nc.acciones) nc.acciones = [];
+  nc.acciones.push({ tipo: 'Correctiva', descripcion: '', plazo: '', responsable: '', cumplida: '' });
+  // Re-render only the tbody
+  const tbody = document.querySelector(`#accionesTable_${ncId} tbody`);
+  if (tbody) {
+    const i = nc.acciones.length - 1;
+    const a = nc.acciones[i];
+    const tipos = ['Correctiva','Preventiva','Corrección'];
+    const tr = document.createElement('tr');
+    tr.id = `accion_row_${ncId}_${i}`;
+    tr.innerHTML = `
+      <td><select onchange="updateAccion(${ncId},${i},'tipo',this.value)" style="width:100%;padding:6px;border:1px solid var(--border);font-family:inherit;font-size:11px;">${tipos.map(t=>`<option value="${t}">${t}</option>`).join('')}</select></td>
+      <td><textarea onchange="updateAccion(${ncId},${i},'descripcion',this.value)" rows="2" style="width:100%;padding:6px;border:1px solid var(--border);font-family:inherit;font-size:11px;"></textarea></td>
+      <td><input type="date" onchange="updateAccion(${ncId},${i},'plazo',this.value)"></td>
+      <td><input type="text" placeholder="mail@empresa.com" onchange="updateAccion(${ncId},${i},'responsable',this.value)"></td>
+      <td><select onchange="updateAccion(${ncId},${i},'cumplida',this.value)"><option value="">—</option><option value="Si">Sí</option><option value="No">No</option><option value="En curso">En curso</option></select></td>
+      <td><button onclick="eliminarAccion(${ncId},${i})" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:18px;line-height:1;padding:4px;">×</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function eliminarAccion(ncId, idx) {
+  const nc = db.ncs.find(n => n.id === ncId); if (!nc) return;
+  if (!confirm('¿Eliminar esta acción?')) return;
+  nc.acciones.splice(idx, 1);
+  // Re-render the whole section
+  const det = document.getElementById('ncDetail');
+  const sec4 = det.querySelectorAll('.section-card')[3];
+  if (sec4) {
+    const newSec = document.createElement('div');
+    newSec.innerHTML = renderSeccion4(nc);
+    sec4.replaceWith(newSec.firstElementChild);
+  }
 }
 
 function showToast(msg) {
