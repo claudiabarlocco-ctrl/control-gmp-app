@@ -763,23 +763,63 @@
 
 <div class="toast" id="toast"></div>
 
+<div id="loadingOverlay" style="position:fixed;inset:0;background:rgba(244,243,239,0.88);z-index:300;align-items:center;justify-content:center;flex-direction:column;gap:12px;display:none;">
+  <div style="width:36px;height:36px;border:3px solid #ddd9d0;border-top-color:#c8410a;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+  <span style="font-family:monospace;font-size:12px;color:#6b6560;letter-spacing:0.06em;">CARGANDO DATOS...</span>
+</div>
+<style>@keyframes spin{to{transform:rotate(360deg);}}</style>
+
 <script>
-// ==================== STORAGE ====================
-const STORAGE_KEY = 'capa_nc_data';
+// ==================== STORAGE (Google Sheets) ====================
+const API_URL = 'https://script.google.com/macros/s/AKfycbwGwQWby3VhF88bgGtKoxGHvjF5yMi44lkar4UzEqwvwIoSkHL6GOs8DDdc-ZCVP90u/exec';
 
-function cargarDatos() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : { ncs: [], counter: 0 };
-  } catch(e) { return { ncs: [], counter: 0 }; }
-}
-
-function guardarDatos(data) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
-
-let db = cargarDatos();
+let db = { ncs: [], counter: 0 };
 let ncActivaId = null;
+
+async function cargarDatos() {
+  mostrarCargando(true);
+  try {
+    const res = await fetch(`${API_URL}?action=getAll`);
+    const data = await res.json();
+    db.ncs = data.ncs || [];
+    db.counter = db.ncs.reduce((max, nc) => {
+      const num = parseInt(nc.numero.replace('NC-','')) || 0;
+      return Math.max(max, num);
+    }, 0);
+  } catch(e) {
+    showToast('Error al cargar datos. Verificá la conexión.');
+  }
+  mostrarCargando(false);
+  renderLista();
+}
+
+async function guardarNC_remoto(nc) {
+  try {
+    const url = `${API_URL}?action=save&data=${encodeURIComponent(JSON.stringify(nc))}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data.ok;
+  } catch(e) {
+    showToast('Error al guardar. Verificá la conexión.');
+    return false;
+  }
+}
+
+async function eliminarNC_remoto(id) {
+  try {
+    const res = await fetch(`${API_URL}?action=delete&id=${id}`);
+    const data = await res.json();
+    return data.ok;
+  } catch(e) {
+    showToast('Error al eliminar.');
+    return false;
+  }
+}
+
+function mostrarCargando(show) {
+  const el = document.getElementById('loadingOverlay');
+  if (el) el.style.display = show ? 'flex' : 'none';
+}
 
 // ==================== ESTADOS ====================
 const ESTADOS = ['Abierta','En análisis','Con acciones','En seguimiento','Cerrada'];
@@ -1147,7 +1187,7 @@ function renderSeccion3(nc) {
 
   const decOpts = ['Crítica','Mayor','Menor'];
   const decButtons = decOpts.map(d => `
-    <button class="btn ${nc.decisionCriticidad===d?'btn-primary':'btn-secondary'} btn-sm" onclick="setDecision('${d}',${nc.id})">${d}</button>
+    <button class="btn ${nc.decisionCriticidad===d?'btn-primary':'btn-secondary'} btn-sm" data-dec="${d}" onclick="setDecision('${d}',${nc.id})">${d}</button>
   `).join('');
 
   const accionOpts = ['Correctiva','Preventiva','Corrección'];
@@ -1494,6 +1534,230 @@ function showToast(msg) {
 
 // Init
 renderLista();
+</script>
+</body>
+</html>// ==================== STORAGE (Google Sheets) ====================
+const API_URL = 'https://script.google.com/macros/s/AKfycbwGwQWby3VhF88bgGtKoxGHvjF5yMi44lkar4UzEqwvwIoSkHL6GOs8DDdc-ZCVP90u/exec';
+
+let db = { ncs: [], counter: 0 };
+let ncActivaId = null;
+
+async function cargarDatos() {
+  mostrarCargando(true);
+  try {
+    const res = await fetch(`${API_URL}?action=getAll`);
+    const data = await res.json();
+    db.ncs = data.ncs || [];
+    db.counter = db.ncs.reduce((max, nc) => {
+      const num = parseInt(nc.numero.replace('NC-','')) || 0;
+      return Math.max(max, num);
+    }, 0);
+  } catch(e) {
+    showToast('Error al cargar datos. Verificá la conexión.');
+  }
+  mostrarCargando(false);
+  renderLista();
+}
+
+async function guardarNC_remoto(nc) {
+  try {
+    const res = await fetch(`${API_URL}?action=save&data=${encodeURIComponent(JSON.stringify(nc))}`);
+    const data = await res.json();
+    return data.ok;
+  } catch(e) {
+    showToast('Error al guardar. Verificá la conexión.');
+    return false;
+  }
+}
+
+async function eliminarNC_remoto(id) {
+  try {
+    const res = await fetch(`${API_URL}?action=delete&id=${id}`);
+    const data = await res.json();
+    return data.ok;
+  } catch(e) {
+    return false;
+  }
+}
+
+function mostrarCargando(show) {
+  const el = document.getElementById('loadingOverlay');
+  if (el) el.style.display = show ? 'flex' : 'none';
+}
+
+// ==================== ACTIONS ====================
+function toggleSection(header) {
+  const body = header.nextElementSibling;
+  const arrow = header.querySelector('span:last-child');
+  body.classList.toggle('hidden');
+  arrow.textContent = body.classList.contains('hidden') ? '\u25b8' : '\u25be';
+}
+function toggleDet(cb) { cb.closest('.check-item').classList.toggle('checked', cb.checked); }
+function toggleAccion(cb) { cb.closest('.check-item').classList.toggle('checked', cb.checked); }
+
+function setSeveridad(el, val, ncId) {
+  const nc = db.ncs.find(n => n.id === ncId); if (!nc) return;
+  nc.severidad = val;
+  document.querySelectorAll(`#sevGrid_${ncId} .crit-option`).forEach(c => c.className = 'crit-option');
+  el.classList.add('selected-' + val.toLowerCase());
+  calcularDecision(ncId);
+}
+function setProbabilidad(el, val, ncId) {
+  const nc = db.ncs.find(n => n.id === ncId); if (!nc) return;
+  nc.probabilidad = val;
+  document.querySelectorAll(`#probGrid_${ncId} .crit-option`).forEach(c => c.className = 'crit-option');
+  el.classList.add('selected-' + val.toLowerCase());
+  calcularDecision(ncId);
+}
+function calcularDecision(ncId) {
+  const nc = db.ncs.find(n => n.id === ncId);
+  if (!nc || !nc.severidad || !nc.probabilidad) return;
+  const matrix = {
+    'Alta-Alta':'Critica','Alta-Moderada':'Mayor','Alta-Baja':'Mayor',
+    'Moderada-Alta':'Mayor','Moderada-Moderada':'Mayor','Moderada-Baja':'Menor',
+    'Baja-Alta':'Menor','Baja-Moderada':'Menor','Baja-Baja':'Menor'
+  };
+  const decision = matrix[nc.severidad+'-'+nc.probabilidad] || '';
+  if (decision) setDecision(decision, ncId);
+}
+function setDecision(val, ncId) {
+  const nc = db.ncs.find(n => n.id === ncId); if (!nc) return;
+  nc.decisionCriticidad = val;
+  document.querySelectorAll('[data-dec]').forEach(b => {
+    b.className = b.dataset.dec === val ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
+  });
+  renderLista();
+}
+function updateAccion(ncId, idx, field, value) {
+  const nc = db.ncs.find(n => n.id === ncId); if (!nc) return;
+  nc.acciones[idx][field] = value;
+}
+
+async function agregarSeguimiento(ncId) {
+  const nc = db.ncs.find(n => n.id === ncId); if (!nc) return;
+  const fecha = document.getElementById('f_segFecha').value;
+  const resp  = document.getElementById('f_segResponsable').value.trim();
+  const desc  = document.getElementById('f_segDescripcion').value.trim();
+  if (!fecha || !resp || !desc) { showToast('Completá fecha, responsable y observación'); return; }
+  if (!nc.seguimientos) nc.seguimientos = [];
+  nc.seguimientos.push({ fecha, responsable: resp, descripcion: desc });
+  showToast('Guardando...');
+  const ok = await guardarNC_remoto(nc);
+  if (ok) { document.getElementById('f_segDescripcion').value = ''; renderDetalle(nc); showToast('Seguimiento agregado'); }
+  else { nc.seguimientos.pop(); showToast('Error al guardar'); }
+}
+
+async function eliminarSeguimiento(ncId, idx) {
+  const nc = db.ncs.find(n => n.id === ncId); if (!nc) return;
+  nc.seguimientos.splice(idx, 1);
+  await guardarNC_remoto(nc);
+  renderDetalle(nc);
+}
+
+async function guardarNC(ncId) {
+  const nc = db.ncs.find(n => n.id === ncId); if (!nc) return;
+  nc.fechaIncidente = document.getElementById('f_fechaIncidente').value;
+  nc.fechaApertura  = document.getElementById('f_fechaApertura').value;
+  nc.abiertoPor     = document.getElementById('f_abiertoPor').value;
+  nc.sector         = document.getElementById('f_sector').value;
+  nc.detalle        = document.getElementById('f_detalle').value;
+  nc.producto       = document.getElementById('f_producto').value;
+  nc.lote           = document.getElementById('f_lote').value;
+  nc.deteccionOtros = document.getElementById('f_deteccionOtros').value;
+  nc.deteccion      = Array.from(document.querySelectorAll('[data-det]:checked')).map(c => c.value);
+  nc.iniciaAccion   = Array.from(document.querySelectorAll('[data-accion]:checked')).map(c => c.value);
+  nc.causaRaiz      = document.getElementById('f_causaRaiz').value;
+  nc.fechaAnalisis  = document.getElementById('f_fechaAnalisis').value;
+  nc.analizadoPor   = document.getElementById('f_analizadoPor').value;
+  nc.analisis = {};
+  document.querySelectorAll('[name^="ish_"]:checked').forEach(r => { nc.analisis[r.name.replace('ish_','')] = r.value; });
+  nc.impactoOtros           = document.getElementById('f_impactoOtros').value;
+  nc.fechaEvaluacion        = document.getElementById('f_fechaEvaluacion').value;
+  nc.evaluador              = document.getElementById('f_evaluador').value;
+  nc.efectividadOk          = document.getElementById('f_efectividadOk').value;
+  nc.comentariosEfectividad = document.getElementById('f_comentariosEfectividad').value;
+  nc.fechaCierre            = document.getElementById('f_fechaCierre').value;
+  nc.cerradoPor             = document.getElementById('f_cerradoPor').value;
+  nc.detalleCierre          = document.getElementById('f_detalleCierre').value;
+  showToast('Guardando...');
+  const ok = await guardarNC_remoto(nc);
+  if (ok) { renderLista(); showToast(`${nc.numero} guardada \u2714`); }
+  else showToast('Error al guardar. Intent\u00e1 de nuevo.');
+}
+
+async function avanzarEstado(ncId) {
+  const nc = db.ncs.find(n => n.id === ncId); if (!nc) return;
+  const idx = ESTADOS.indexOf(nc.estado);
+  if (idx < ESTADOS.length - 1) {
+    nc.estado = ESTADOS[idx+1];
+    showToast('Guardando...');
+    const ok = await guardarNC_remoto(nc);
+    if (ok) { renderLista(); renderDetalle(nc); showToast(`Estado: ${nc.estado} \u2714`); }
+  }
+}
+
+async function eliminarNC(ncId) {
+  if (!confirm('\u00bfEliminar esta No Conformidad? Esta acci\u00f3n no se puede deshacer.')) return;
+  showToast('Eliminando...');
+  const ok = await eliminarNC_remoto(ncId);
+  if (ok) {
+    db.ncs = db.ncs.filter(n => n.id !== ncId);
+    ncActivaId = null;
+    renderLista();
+    document.getElementById('ncDetail').classList.add('hidden');
+    document.getElementById('placeholder').classList.remove('hidden');
+    showToast('NC eliminada');
+  }
+}
+
+async function crearNC() {
+  const detalle    = document.getElementById('nuevaDetalle').value.trim();
+  const sector     = document.getElementById('nuevaSector').value.trim();
+  const abiertoPor = document.getElementById('nuevaAbiertoPor').value.trim();
+  const fechaInc   = document.getElementById('nuevaFechaIncidente').value;
+  const fechaAp    = document.getElementById('nuevaFechaApertura').value;
+  if (!detalle || !sector || !abiertoPor || !fechaInc || !fechaAp) { showToast('Complet\u00e1 los campos obligatorios (*)'); return; }
+  const deteccion = Array.from(document.querySelectorAll('#nuevaDeteccionGrid input:checked')).map(c => c.value);
+  db.counter++;
+  const nc = {
+    id: Date.now(),
+    numero: `NC-${String(db.counter).padStart(4,'0')}`,
+    estado: 'Abierta', criticidad: null,
+    fechaIncidente: fechaInc, fechaApertura: fechaAp, abiertoPor, sector, detalle,
+    deteccion, deteccionOtros: document.getElementById('nuevaDeteccionOtros').value.trim(),
+    producto: document.getElementById('nuevaProducto').value.trim(),
+    lote: document.getElementById('nuevaLote').value.trim(),
+    analisis: {}, causaRaiz: '', fechaAnalisis: '', analizadoPor: '',
+    severidad: '', probabilidad: '', decisionCriticidad: '', impactoOtros: '', iniciaAccion: [],
+    acciones: [
+      { tipo: 'Correctiva', descripcion: '', plazo: '', responsable: '', cumplida: '' },
+      { tipo: 'Preventiva', descripcion: '', plazo: '', responsable: '', cumplida: '' },
+      { tipo: 'Correcci\u00f3n', descripcion: '', plazo: '', responsable: '', cumplida: '' },
+    ],
+    seguimientos: [],
+    fechaEvaluacion: '', efectividadOk: '', evaluador: '', comentariosEfectividad: '',
+    fechaCierre: '', cerradoPor: '', detalleCierre: '',
+  };
+  cerrarModal();
+  ['nuevaDetalle','nuevaSector','nuevaAbiertoPor','nuevaProducto','nuevaLote','nuevaDeteccionOtros'].forEach(id => document.getElementById(id).value='');
+  document.querySelectorAll('#nuevaDeteccionGrid input').forEach(c => c.checked=false);
+  showToast('Guardando...');
+  const ok = await guardarNC_remoto(nc);
+  if (ok) { db.ncs.unshift(nc); renderLista(); abrirNC(nc.id); showToast(`${nc.numero} creada \u2714`); }
+  else { db.counter--; showToast('Error al crear la NC.'); }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// Init
+cargarDatos();
+
 </script>
 </body>
 </html>
