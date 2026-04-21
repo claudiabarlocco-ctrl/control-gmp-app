@@ -1559,10 +1559,13 @@ async function cargarDatos() {
   renderLista();
 }
 
-async function guardarNC_remoto(nc) {
+async function guardarNC_remoto(nc, notificar=false) {
   try {
     const res = await fetch(`${API_URL}?action=save&data=${encodeURIComponent(JSON.stringify(nc))}`);
     const data = await res.json();
+    if (data.ok && notificar) {
+      await fetch(`${API_URL}?action=notifyNew&data=${encodeURIComponent(JSON.stringify(nc))}`);
+    }
     return data.ok;
   } catch(e) {
     showToast('Error al guardar. Verificá la conexión.');
@@ -1742,7 +1745,7 @@ async function crearNC() {
   ['nuevaDetalle','nuevaSector','nuevaAbiertoPor','nuevaProducto','nuevaLote','nuevaDeteccionOtros'].forEach(id => document.getElementById(id).value='');
   document.querySelectorAll('#nuevaDeteccionGrid input').forEach(c => c.checked=false);
   showToast('Guardando...');
-  const ok = await guardarNC_remoto(nc);
+  const ok = await guardarNC_remoto(nc, true);
   if (ok) { db.ncs.unshift(nc); renderLista(); abrirNC(nc.id); showToast(`${nc.numero} creada \u2714`); }
   else { db.counter--; showToast('Error al crear la NC.'); }
 }
