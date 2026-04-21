@@ -780,24 +780,37 @@ async function cargarDatos() {
   mostrarCargando(true);
   try {
     const res = await fetch(`${API_URL}?action=getAll`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
+    if (data.error) throw new Error(data.error);
     db.ncs = data.ncs || [];
     db.counter = db.ncs.reduce((max, nc) => {
       const num = parseInt(nc.numero.replace('NC-','')) || 0;
       return Math.max(max, num);
     }, 0);
+    console.log('Datos cargados:', db.ncs.length, 'NCs');
   } catch(e) {
-    showToast('Error al cargar datos. Verificá la conexión.');
+    console.error('Error cargarDatos:', e);
+    showToast('Error al cargar: ' + e.message);
   }
   mostrarCargando(false);
   renderLista();
 }
 
-async function guardarNC_remoto(nc) {
+async function guardarNC_remoto(nc, notificar=false) {
   try {
-    const url = `${API_URL}?action=save&data=${encodeURIComponent(JSON.stringify(nc))}`;
-    const res = await fetch(url);
+    const params = new URLSearchParams({ action: 'save', data: JSON.stringify(nc) });
+    console.log('Guardando NC:', nc.numero);
+    const res = await fetch(API_URL + '?' + params.toString());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
+    console.log('Respuesta:', data);
+    if (data.ok && notificar) {
+      try {
+        const p2 = new URLSearchParams({ action: 'notifyNew', data: JSON.stringify(nc) });
+        await fetch(API_URL + '?' + p2.toString());
+      } catch(e) { /* mail error no bloquea */ }
+    }
     return data.ok;
   } catch(e) {
     showToast('Error al guardar. Verificá la conexión.');
@@ -845,82 +858,6 @@ function abrirModalNueva() {
 }
 function cerrarModal() {
   document.getElementById('modalNueva').classList.add('hidden');
-}
-
-function crearNC() {
-  const detalle = document.getElementById('nuevaDetalle').value.trim();
-  const sector  = document.getElementById('nuevaSector').value.trim();
-  const abiertoPor = document.getElementById('nuevaAbiertoPor').value.trim();
-  const fechaInc = document.getElementById('nuevaFechaIncidente').value;
-  const fechaAp  = document.getElementById('nuevaFechaApertura').value;
-  if (!detalle || !sector || !abiertoPor || !fechaInc || !fechaAp) {
-    showToast('Completá los campos obligatorios (*)');
-    return;
-  }
-  const checkboxes = document.querySelectorAll('#nuevaDeteccionGrid input:checked');
-  const deteccion = Array.from(checkboxes).map(c => c.value);
-  const otros = document.getElementById('nuevaDeteccionOtros').value.trim();
-
-  db.counter++;
-  const nc = {
-    id: Date.now(),
-    numero: `NC-${String(db.counter).padStart(4,'0')}`,
-    estado: 'Abierta',
-    criticidad: null,
-    // Apertura
-    fechaIncidente: fechaInc,
-    fechaApertura: fechaAp,
-    abiertoPor,
-    sector,
-    detalle,
-    deteccion,
-    deteccionOtros: otros,
-    producto: document.getElementById('nuevaProducto').value.trim(),
-    lote: document.getElementById('nuevaLote').value.trim(),
-    // Causa raíz
-    analisis: {},
-    causaRaiz: '',
-    fechaAnalisis: '',
-    analizadoPor: '',
-    // Criticidad
-    severidad: '',
-    probabilidad: '',
-    decisionCriticidad: '',
-    impactoOtros: '',
-    iniciaAccion: [],
-    // Acciones
-    acciones: [
-      { tipo: 'Correctiva', descripcion: '', plazo: '', responsable: '', seguimiento: '', fechaSeguimiento: '', cumplida: '' },
-      { tipo: 'Preventiva', descripcion: '', plazo: '', responsable: '', seguimiento: '', fechaSeguimiento: '', cumplida: '' },
-      { tipo: 'Corrección', descripcion: '', plazo: '', responsable: '', seguimiento: '', fechaSeguimiento: '', cumplida: '' },
-    ],
-    // Seguimientos
-    seguimientos: [],
-    // Efectividad
-    fechaEvaluacion: '',
-    efectividadOk: '',
-    evaluador: '',
-    comentariosEfectividad: '',
-    // Cierre
-    fechaCierre: '',
-    cerradoPor: '',
-    detalleCierre: '',
-  };
-
-  db.ncs.unshift(nc);
-  cerrarModal();
-  // reset form
-  document.getElementById('nuevaDetalle').value='';
-  document.getElementById('nuevaSector').value='';
-  document.getElementById('nuevaAbiertoPor').value='';
-  document.getElementById('nuevaProducto').value='';
-  document.getElementById('nuevaLote').value='';
-  document.getElementById('nuevaDeteccionOtros').value='';
-  document.querySelectorAll('#nuevaDeteccionGrid input').forEach(c=>c.checked=false);
-
-  renderLista();
-  abrirNC(nc.id);
-  showToast(`${nc.numero} creada correctamente`);
 }
 
 // ==================== LISTA ====================
@@ -1364,266 +1301,6 @@ function renderSeccion5(nc) {
       </div>
     </div>
   </div>`;
-}
-
-// ==================== ACTIONS ====================
-function toggleSection(header) {
-  const body = header.nextElementSibling;
-  const arrow = header.querySelector('span:last-child');
-  body.classList.toggle('hidden');
-  arrow.textContent = body.classList.contains('hidden') ? '▸' : '▾';
-}
-
-function toggleDet(cb, ncId) {
-  cb.closest('.check-item').classList.toggle('checked', cb.checked);
-}
-
-function toggleAccion(cb, ncId) {
-  cb.closest('.check-item').classList.toggle('checked', cb.checked);
-}
-
-function setSeveridad(el, val, ncId) {
-  const nc = db.ncs.find(n => n.id === ncId);
-  if (!nc) return;
-  nc.severidad = val;
-  document.querySelectorAll(`#sevGrid_${ncId} .crit-option`).forEach(c => {
-    c.className = 'crit-option';
-  });
-  el.classList.add('selected-' + val.toLowerCase());
-}
-
-function setProbabilidad(el, val, ncId) {
-  const nc = db.ncs.find(n => n.id === ncId);
-  if (!nc) return;
-  nc.probabilidad = val;
-  document.querySelectorAll(`#probGrid_${ncId} .crit-option`).forEach(c => {
-    c.className = 'crit-option';
-  });
-  el.classList.add('selected-' + val.toLowerCase());
-  calcularDecision(ncId);
-}
-
-function calcularDecision(ncId) {
-  const nc = db.ncs.find(n => n.id === ncId);
-  if (!nc || !nc.severidad || !nc.probabilidad) return;
-  const matrix = {
-    'Alta-Alta': 'Crítica', 'Alta-Moderada': 'Mayor', 'Alta-Baja': 'Mayor',
-    'Moderada-Alta': 'Mayor', 'Moderada-Moderada': 'Mayor', 'Moderada-Baja': 'Menor',
-    'Baja-Alta': 'Menor', 'Baja-Moderada': 'Menor', 'Baja-Baja': 'Menor'
-  };
-  const key = nc.severidad + '-' + nc.probabilidad;
-  const decision = matrix[key] || '';
-  if (decision) setDecision(decision, ncId);
-}
-
-function setDecision(val, ncId) {
-  const nc = db.ncs.find(n => n.id === ncId);
-  if (!nc) return;
-  nc.decisionCriticidad = val;
-  // update buttons
-  document.querySelectorAll(`[onclick^="setDecision('${val}']`).forEach(b=>b.className='btn btn-primary btn-sm');
-  ['Crítica','Mayor','Menor'].filter(d=>d!==val).forEach(d=>{
-    document.querySelectorAll(`[onclick^="setDecision('${d}']`).forEach(b=>b.className='btn btn-secondary btn-sm');
-  });
-  renderLista();
-}
-
-function updateAccion(ncId, idx, field, value) {
-  const nc = db.ncs.find(n => n.id === ncId);
-  if (!nc) return;
-  nc.acciones[idx][field] = value;
-}
-
-function agregarSeguimiento(ncId) {
-  const nc = db.ncs.find(n => n.id === ncId);
-  if (!nc) return;
-  const fecha = document.getElementById('f_segFecha').value;
-  const resp  = document.getElementById('f_segResponsable').value.trim();
-  const desc  = document.getElementById('f_segDescripcion').value.trim();
-  if (!fecha || !resp || !desc) { showToast('Completá fecha, responsable y observación'); return; }
-  if (!nc.seguimientos) nc.seguimientos = [];
-  nc.seguimientos.push({ fecha, responsable: resp, descripcion: desc });
-  document.getElementById('f_segDescripcion').value = '';
-  renderDetalle(nc);
-  showToast('Seguimiento agregado');
-}
-
-function eliminarSeguimiento(ncId, idx) {
-  const nc = db.ncs.find(n => n.id === ncId);
-  if (!nc) return;
-  nc.seguimientos.splice(idx, 1);
-  renderDetalle(nc);
-}
-
-function guardarNC(ncId) {
-  const nc = db.ncs.find(n => n.id === ncId);
-  if (!nc) return;
-
-  // Apertura
-  nc.fechaIncidente = document.getElementById('f_fechaIncidente').value;
-  nc.fechaApertura  = document.getElementById('f_fechaApertura').value;
-  nc.abiertoPor     = document.getElementById('f_abiertoPor').value;
-  nc.sector         = document.getElementById('f_sector').value;
-  nc.detalle        = document.getElementById('f_detalle').value;
-  nc.producto       = document.getElementById('f_producto').value;
-  nc.lote           = document.getElementById('f_lote').value;
-  nc.deteccionOtros = document.getElementById('f_deteccionOtros').value;
-
-  const detchecks = document.querySelectorAll('[data-det]:checked');
-  nc.deteccion = Array.from(detchecks).map(c => c.value);
-
-  const accChecks = document.querySelectorAll('[data-accion]:checked');
-  nc.iniciaAccion = Array.from(accChecks).map(c => c.value);
-
-  // Causa raiz
-  nc.causaRaiz    = document.getElementById('f_causaRaiz').value;
-  nc.fechaAnalisis = document.getElementById('f_fechaAnalisis').value;
-  nc.analizadoPor = document.getElementById('f_analizadoPor').value;
-
-  // Ishikawa
-  nc.analisis = {};
-  document.querySelectorAll('[name^="ish_"]:checked').forEach(r => {
-    const key = r.name.replace('ish_','');
-    nc.analisis[key] = r.value;
-  });
-
-  // Criticidad
-  nc.impactoOtros = document.getElementById('f_impactoOtros').value;
-
-  // Efectividad y cierre
-  nc.fechaEvaluacion = document.getElementById('f_fechaEvaluacion').value;
-  nc.evaluador = document.getElementById('f_evaluador').value;
-  nc.efectividadOk = document.getElementById('f_efectividadOk').value;
-  nc.comentariosEfectividad = document.getElementById('f_comentariosEfectividad').value;
-  nc.fechaCierre = document.getElementById('f_fechaCierre').value;
-  nc.cerradoPor  = document.getElementById('f_cerradoPor').value;
-  nc.detalleCierre = document.getElementById('f_detalleCierre').value;
-
-  renderLista();
-  showToast(`${nc.numero} guardada correctamente ✔`);
-}
-
-function avanzarEstado(ncId) {
-  const nc = db.ncs.find(n => n.id === ncId);
-  if (!nc) return;
-  const idx = ESTADOS.indexOf(nc.estado);
-  if (idx < ESTADOS.length - 1) {
-    nc.estado = ESTADOS[idx + 1];
-    renderLista();
-    renderDetalle(nc);
-    showToast(`Estado: ${nc.estado}`);
-  }
-}
-
-function eliminarNC(ncId) {
-  if (!confirm('¿Eliminar esta No Conformidad? Esta acción no se puede deshacer.')) return;
-  db.ncs = db.ncs.filter(n => n.id !== ncId);
-  ncActivaId = null;
-  renderLista();
-  document.getElementById('ncDetail').classList.add('hidden');
-  document.getElementById('placeholder').classList.remove('hidden');
-  showToast('NC eliminada');
-}
-
-function agregarAccion(ncId) {
-  const nc = db.ncs.find(n => n.id === ncId); if (!nc) return;
-  if (!nc.acciones) nc.acciones = [];
-  nc.acciones.push({ tipo: 'Correctiva', descripcion: '', plazo: '', responsable: '', cumplida: '' });
-  // Re-render only the tbody
-  const tbody = document.querySelector(`#accionesTable_${ncId} tbody`);
-  if (tbody) {
-    const i = nc.acciones.length - 1;
-    const a = nc.acciones[i];
-    const tipos = ['Correctiva','Preventiva','Corrección'];
-    const tr = document.createElement('tr');
-    tr.id = `accion_row_${ncId}_${i}`;
-    tr.innerHTML = `
-      <td><select onchange="updateAccion(${ncId},${i},'tipo',this.value)" style="width:100%;padding:6px;border:1px solid var(--border);font-family:inherit;font-size:11px;">${tipos.map(t=>`<option value="${t}">${t}</option>`).join('')}</select></td>
-      <td><textarea onchange="updateAccion(${ncId},${i},'descripcion',this.value)" rows="2" style="width:100%;padding:6px;border:1px solid var(--border);font-family:inherit;font-size:11px;"></textarea></td>
-      <td><input type="date" onchange="updateAccion(${ncId},${i},'plazo',this.value)"></td>
-      <td><input type="text" placeholder="mail@empresa.com" onchange="updateAccion(${ncId},${i},'responsable',this.value)"></td>
-      <td><select onchange="updateAccion(${ncId},${i},'cumplida',this.value)"><option value="">—</option><option value="Si">Sí</option><option value="No">No</option><option value="En curso">En curso</option></select></td>
-      <td><button onclick="eliminarAccion(${ncId},${i})" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:18px;line-height:1;padding:4px;">×</button></td>
-    `;
-    tbody.appendChild(tr);
-  }
-}
-
-function eliminarAccion(ncId, idx) {
-  const nc = db.ncs.find(n => n.id === ncId); if (!nc) return;
-  if (!confirm('¿Eliminar esta acción?')) return;
-  nc.acciones.splice(idx, 1);
-  // Re-render the whole section
-  const det = document.getElementById('ncDetail');
-  const sec4 = det.querySelectorAll('.section-card')[3];
-  if (sec4) {
-    const newSec = document.createElement('div');
-    newSec.innerHTML = renderSeccion4(nc);
-    sec4.replaceWith(newSec.firstElementChild);
-  }
-}
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
-
-// Init
-renderLista();
-</script>
-</body>
-</html>// ==================== STORAGE (Google Sheets) ====================
-const API_URL = 'https://script.google.com/macros/s/AKfycbwGwQWby3VhF88bgGtKoxGHvjF5yMi44lkar4UzEqwvwIoSkHL6GOs8DDdc-ZCVP90u/exec';
-
-let db = { ncs: [], counter: 0 };
-let ncActivaId = null;
-
-async function cargarDatos() {
-  mostrarCargando(true);
-  try {
-    const res = await fetch(`${API_URL}?action=getAll`);
-    const data = await res.json();
-    db.ncs = data.ncs || [];
-    db.counter = db.ncs.reduce((max, nc) => {
-      const num = parseInt(nc.numero.replace('NC-','')) || 0;
-      return Math.max(max, num);
-    }, 0);
-  } catch(e) {
-    showToast('Error al cargar datos. Verificá la conexión.');
-  }
-  mostrarCargando(false);
-  renderLista();
-}
-
-async function guardarNC_remoto(nc, notificar=false) {
-  try {
-    const res = await fetch(`${API_URL}?action=save&data=${encodeURIComponent(JSON.stringify(nc))}`);
-    const data = await res.json();
-    if (data.ok && notificar) {
-      await fetch(`${API_URL}?action=notifyNew&data=${encodeURIComponent(JSON.stringify(nc))}`);
-    }
-    return data.ok;
-  } catch(e) {
-    showToast('Error al guardar. Verificá la conexión.');
-    return false;
-  }
-}
-
-async function eliminarNC_remoto(id) {
-  try {
-    const res = await fetch(`${API_URL}?action=delete&id=${id}`);
-    const data = await res.json();
-    return data.ok;
-  } catch(e) {
-    return false;
-  }
-}
-
-function mostrarCargando(show) {
-  const el = document.getElementById('loadingOverlay');
-  if (el) el.style.display = show ? 'flex' : 'none';
 }
 
 // ==================== ACTIONS ====================
