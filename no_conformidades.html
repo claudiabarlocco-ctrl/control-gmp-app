@@ -908,7 +908,6 @@ function crearNC() {
   };
 
   db.ncs.unshift(nc);
-  guardarDatos(db);
   cerrarModal();
   // reset form
   document.getElementById('nuevaDetalle').value='';
@@ -1381,7 +1380,6 @@ function setSeveridad(el, val, ncId) {
     c.className = 'crit-option';
   });
   el.classList.add('selected-' + val.toLowerCase());
-  guardarDatos(db);
 }
 
 function setProbabilidad(el, val, ncId) {
@@ -1392,7 +1390,6 @@ function setProbabilidad(el, val, ncId) {
     c.className = 'crit-option';
   });
   el.classList.add('selected-' + val.toLowerCase());
-  guardarDatos(db);
   calcularDecision(ncId);
 }
 
@@ -1413,7 +1410,6 @@ function setDecision(val, ncId) {
   const nc = db.ncs.find(n => n.id === ncId);
   if (!nc) return;
   nc.decisionCriticidad = val;
-  guardarDatos(db);
   // update buttons
   document.querySelectorAll(`[onclick^="setDecision('${val}']`).forEach(b=>b.className='btn btn-primary btn-sm');
   ['Crítica','Mayor','Menor'].filter(d=>d!==val).forEach(d=>{
@@ -1426,7 +1422,6 @@ function updateAccion(ncId, idx, field, value) {
   const nc = db.ncs.find(n => n.id === ncId);
   if (!nc) return;
   nc.acciones[idx][field] = value;
-  guardarDatos(db);
 }
 
 function agregarSeguimiento(ncId) {
@@ -1438,7 +1433,6 @@ function agregarSeguimiento(ncId) {
   if (!fecha || !resp || !desc) { showToast('Completá fecha, responsable y observación'); return; }
   if (!nc.seguimientos) nc.seguimientos = [];
   nc.seguimientos.push({ fecha, responsable: resp, descripcion: desc });
-  guardarDatos(db);
   document.getElementById('f_segDescripcion').value = '';
   renderDetalle(nc);
   showToast('Seguimiento agregado');
@@ -1448,7 +1442,6 @@ function eliminarSeguimiento(ncId, idx) {
   const nc = db.ncs.find(n => n.id === ncId);
   if (!nc) return;
   nc.seguimientos.splice(idx, 1);
-  guardarDatos(db);
   renderDetalle(nc);
 }
 
@@ -1496,7 +1489,6 @@ function guardarNC(ncId) {
   nc.cerradoPor  = document.getElementById('f_cerradoPor').value;
   nc.detalleCierre = document.getElementById('f_detalleCierre').value;
 
-  guardarDatos(db);
   renderLista();
   showToast(`${nc.numero} guardada correctamente ✔`);
 }
@@ -1507,7 +1499,6 @@ function avanzarEstado(ncId) {
   const idx = ESTADOS.indexOf(nc.estado);
   if (idx < ESTADOS.length - 1) {
     nc.estado = ESTADOS[idx + 1];
-    guardarDatos(db);
     renderLista();
     renderDetalle(nc);
     showToast(`Estado: ${nc.estado}`);
@@ -1517,7 +1508,6 @@ function avanzarEstado(ncId) {
 function eliminarNC(ncId) {
   if (!confirm('¿Eliminar esta No Conformidad? Esta acción no se puede deshacer.')) return;
   db.ncs = db.ncs.filter(n => n.id !== ncId);
-  guardarDatos(db);
   ncActivaId = null;
   renderLista();
   document.getElementById('ncDetail').classList.add('hidden');
