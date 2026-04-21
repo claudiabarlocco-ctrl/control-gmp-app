@@ -1,0 +1,1499 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registro de No Conformidades · CAPA</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #f4f3ef;
+    --surface: #ffffff;
+    --surface2: #f9f8f5;
+    --border: #ddd9d0;
+    --border-strong: #b8b2a7;
+    --text: #1a1916;
+    --text-muted: #6b6560;
+    --accent: #c8410a;
+    --accent-light: #fdf0eb;
+    --accent2: #1a5c3a;
+    --accent2-light: #eaf4ee;
+    --yellow: #f0a500;
+    --yellow-light: #fef8e8;
+    --blue: #1a4a7a;
+    --blue-light: #e8f0f8;
+
+    --state-abierta: #c8410a;
+    --state-analisis: #f0a500;
+    --state-acciones: #1a4a7a;
+    --state-seguimiento: #6b3fa0;
+    --state-cerrada: #1a5c3a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--text);
+    color: white;
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 3px solid var(--accent);
+  }
+  header h1 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  header span {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.05em;
+  }
+
+  /* LAYOUT */
+  .app { display: flex; min-height: calc(100vh - 56px); }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 280px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+  .sidebar-section {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+  .btn-nueva {
+    width: 100%;
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 12px 16px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s;
+  }
+  .btn-nueva:hover { background: #a83509; }
+  .btn-nueva svg { flex-shrink: 0; }
+
+  /* FILTERS */
+  .filter-group { margin-bottom: 12px; }
+  .filter-group label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .filter-group select, .filter-group input {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+  }
+  .filter-group select:focus, .filter-group input:focus {
+    border-color: var(--accent);
+  }
+
+  /* NC LIST */
+  .nc-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+  .nc-item {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.1s;
+    position: relative;
+  }
+  .nc-item:hover { background: var(--surface2); }
+  .nc-item.active { background: var(--accent-light); border-left: 3px solid var(--accent); }
+  .nc-item-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 3px;
+  }
+  .nc-item-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .nc-item-meta {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    border-radius: 2px;
+    text-transform: uppercase;
+  }
+  .badge-abierta   { background: #fdecea; color: var(--state-abierta); }
+  .badge-analisis  { background: var(--yellow-light); color: #8a5e00; }
+  .badge-acciones  { background: var(--blue-light); color: var(--state-acciones); }
+  .badge-seguimiento { background: #f3eef9; color: var(--state-seguimiento); }
+  .badge-cerrada   { background: var(--accent2-light); color: var(--state-cerrada); }
+
+  .badge-critica   { background: #fdecea; color: var(--state-abierta); }
+  .badge-mayor     { background: var(--yellow-light); color: #8a5e00; }
+  .badge-menor     { background: var(--blue-light); color: var(--state-acciones); }
+
+  .nc-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  /* MAIN CONTENT */
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px;
+    background: var(--bg);
+  }
+
+  .placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 400px;
+    text-align: center;
+    color: var(--text-muted);
+  }
+  .placeholder-icon {
+    width: 64px;
+    height: 64px;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    color: var(--border-strong);
+  }
+  .placeholder h2 { font-size: 16px; font-weight: 500; margin-bottom: 6px; color: var(--text); }
+  .placeholder p { font-size: 13px; }
+
+  /* NC DETAIL */
+  .nc-detail { max-width: 860px; }
+
+  .nc-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    gap: 16px;
+  }
+  .nc-header-left h2 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .nc-header-left p {
+    font-size: 14px;
+    color: var(--text-muted);
+    max-width: 500px;
+  }
+  .nc-header-actions { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+
+  /* PROGRESS BAR */
+  .progress-bar {
+    display: flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    margin-bottom: 28px;
+    overflow: hidden;
+  }
+  .progress-step {
+    flex: 1;
+    padding: 10px 8px;
+    text-align: center;
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-right: 1px solid var(--border);
+    transition: all 0.2s;
+    position: relative;
+  }
+  .progress-step:last-child { border-right: none; }
+  .progress-step.done { background: var(--accent2-light); color: var(--accent2); }
+  .progress-step.current { background: var(--accent); color: white; }
+  .progress-step .step-num {
+    display: block;
+    font-size: 16px;
+    margin-bottom: 2px;
+  }
+
+  /* SECTIONS */
+  .section-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .section-header {
+    padding: 14px 20px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+  }
+  .section-header:hover { background: var(--bg); }
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+  }
+  .section-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    background: var(--text);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 2px;
+  }
+  .section-body { padding: 20px; }
+  .section-body.hidden { display: none; }
+
+  /* FORM ELEMENTS */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .form-full { grid-column: 1 / -1; }
+
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    resize: vertical;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus { border-color: var(--accent); background: white; }
+  .form-group input[readonly],
+  .form-group textarea[readonly] {
+    background: var(--bg);
+    color: var(--text-muted);
+    cursor: default;
+  }
+
+  /* DETECCION CHECKBOXES */
+  .deteccion-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    cursor: pointer;
+    transition: all 0.1s;
+    font-size: 12px;
+  }
+  .check-item:hover { background: var(--accent-light); border-color: var(--accent); }
+  .check-item input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; }
+  .check-item.checked { background: var(--accent-light); border-color: var(--accent); font-weight: 500; }
+
+  /* CRITICIDAD */
+  .criticidad-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .crit-option {
+    border: 2px solid var(--border);
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .crit-option:hover { border-color: var(--border-strong); }
+  .crit-option.selected-baja { border-color: var(--state-acciones); background: var(--blue-light); }
+  .crit-option.selected-moderada { border-color: var(--yellow); background: var(--yellow-light); }
+  .crit-option.selected-alta { border-color: var(--accent); background: var(--accent-light); }
+  .crit-option-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+  .crit-option-desc { font-size: 10px; color: var(--text-muted); line-height: 1.4; }
+
+  /* ISHIKAWA TABLE */
+  .ishikawa-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .ishikawa-table th {
+    background: var(--text);
+    color: white;
+    padding: 8px 10px;
+    text-align: left;
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .ishikawa-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .ishikawa-table tr:hover td { background: var(--surface2); }
+  .ishikawa-table .categoria {
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .radio-group { display: flex; gap: 8px; }
+  .radio-group label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 3px 6px;
+    border: 1px solid var(--border);
+    transition: all 0.1s;
+  }
+  .radio-group label:hover { border-color: var(--border-strong); }
+  .radio-group input[type="radio"] { accent-color: var(--accent); }
+
+  /* ACCIONES TABLE */
+  .acciones-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .acciones-table th {
+    background: var(--surface2);
+    padding: 8px 10px;
+    text-align: left;
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    border-bottom: 2px solid var(--border);
+    text-transform: uppercase;
+  }
+  .acciones-table td {
+    padding: 6px 6px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .acciones-table input, .acciones-table select, .acciones-table textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 11px;
+    color: var(--text);
+    outline: none;
+  }
+  .acciones-table input:focus, .acciones-table select:focus { border-color: var(--accent); }
+
+  .tipo-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    border-radius: 2px;
+  }
+  .tipo-correctiva { background: var(--accent-light); color: var(--accent); }
+  .tipo-preventiva { background: var(--blue-light); color: var(--blue); }
+  .tipo-correccion { background: var(--yellow-light); color: #7a5000; }
+
+  /* SEGUIMIENTOS */
+  .seguimiento-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 14px;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .seguimiento-item .meta {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* BUTTONS */
+  .btn {
+    padding: 9px 16px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    letter-spacing: 0.03em;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: #a83509; }
+  .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: var(--surface2); }
+  .btn-success { background: var(--accent2); color: white; }
+  .btn-success:hover { background: #134d2e; }
+  .btn-warning { background: var(--yellow); color: white; }
+  .btn-warning:hover { background: #c88a00; }
+  .btn-sm { padding: 6px 12px; font-size: 11px; }
+  .btn-danger { background: #dc3545; color: white; }
+  .btn-danger:hover { background: #b02a37; }
+
+  .form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal {
+    background: white;
+    width: 100%;
+    max-width: 560px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-top: 4px solid var(--accent);
+  }
+  .modal-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modal-header h3 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .modal-body { padding: 24px; }
+  .modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  .btn-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 20px;
+    line-height: 1;
+    padding: 4px;
+  }
+  .btn-close:hover { color: var(--text); }
+
+  .hidden { display: none !important; }
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--text);
+    color: white;
+    padding: 12px 20px;
+    font-size: 13px;
+    z-index: 999;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s;
+    border-left: 4px solid var(--accent2);
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .stat-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    text-align: center;
+  }
+  .stat-chip .num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px;
+    font-weight: 600;
+    display: block;
+  }
+  .stat-chip .lbl {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    display: block;
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⬛ CAPA · Registro de No Conformidades</h1>
+  <span id="headerMeta">REG-SOP-AC-036-A · v1.0</span>
+</header>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <button class="btn-nueva" onclick="abrirModalNueva()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nueva No Conformidad
+      </button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Filtros</div>
+      <div class="filter-group">
+        <label>Estado</label>
+        <select id="filtroEstado" onchange="renderLista()">
+          <option value="">Todos</option>
+          <option value="Abierta">Abierta</option>
+          <option value="En análisis">En análisis</option>
+          <option value="Con acciones">Con acciones</option>
+          <option value="En seguimiento">En seguimiento</option>
+          <option value="Cerrada">Cerrada</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Criticidad</label>
+        <select id="filtroCriticidad" onchange="renderLista()">
+          <option value="">Todas</option>
+          <option value="Crítica">Crítica</option>
+          <option value="Mayor">Mayor</option>
+          <option value="Menor">Menor</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Buscar</label>
+        <input type="text" id="filtroBuscar" placeholder="Sector, descripción..." oninput="renderLista()">
+      </div>
+    </div>
+
+    <div class="nc-list" id="ncList">
+      <div class="nc-empty">No hay registros aún.<br>Creá la primera NC.</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main" id="mainContent">
+    <div class="placeholder" id="placeholder">
+      <div class="placeholder-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      </div>
+      <h2>Seleccioná una No Conformidad</h2>
+      <p>O creá una nueva con el botón de arriba</p>
+    </div>
+    <div id="ncDetail" class="nc-detail hidden"></div>
+  </main>
+</div>
+
+<!-- MODAL NUEVA NC -->
+<div class="modal-overlay hidden" id="modalNueva">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Nueva No Conformidad</h3>
+      <button class="btn-close" onclick="cerrarModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Fecha del incidente *</label>
+          <input type="date" id="nuevaFechaIncidente">
+        </div>
+        <div class="form-group">
+          <label>Fecha de apertura *</label>
+          <input type="date" id="nuevaFechaApertura">
+        </div>
+        <div class="form-group">
+          <label>Abierto por *</label>
+          <input type="text" id="nuevaAbiertoPor" placeholder="Nombre y apellido">
+        </div>
+        <div class="form-group">
+          <label>Sector *</label>
+          <input type="text" id="nuevaSector" placeholder="Área / Sector">
+        </div>
+        <div class="form-group form-full">
+          <label>Detalle del incidente *</label>
+          <textarea id="nuevaDetalle" rows="3" placeholder="¿Cuándo se detectó y qué se detectó?"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Producto / Instrumento / Doc.</label>
+          <input type="text" id="nuevaProducto" placeholder="Producto o documento asociado">
+        </div>
+        <div class="form-group">
+          <label>Lote (si corresponde)</label>
+          <input type="text" id="nuevaLote" placeholder="Nro. de lote">
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="form-group">
+        <label>Tipo de detección</label>
+        <div class="deteccion-grid" id="nuevaDeteccionGrid">
+          <label class="check-item"><input type="checkbox" value="Auditorías"> Auditorías</label>
+          <label class="check-item"><input type="checkbox" value="Validaciones y calificaciones"> Validaciones y calificaciones</label>
+          <label class="check-item"><input type="checkbox" value="Desvíos de procesos"> Desvíos de procesos</label>
+          <label class="check-item"><input type="checkbox" value="Revisión por la dirección"> Revisión por la dirección</label>
+          <label class="check-item"><input type="checkbox" value="Evaluación de proveedores"> Evaluación de proveedores</label>
+          <label class="check-item"><input type="checkbox" value="Control interno"> Control interno</label>
+          <label class="check-item"><input type="checkbox" value="Reclamo clientes"> Reclamo clientes</label>
+          <label class="check-item"><input type="checkbox" value="Otros"> Otros</label>
+        </div>
+        <input type="text" id="nuevaDeteccionOtros" placeholder="Especificar si marcó Otros..." style="margin-top:6px">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="crearNC()">Crear No Conformidad</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== STORAGE ====================
+const STORAGE_KEY = 'capa_nc_data';
+
+function cargarDatos() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : { ncs: [], counter: 0 };
+  } catch(e) { return { ncs: [], counter: 0 }; }
+}
+
+function guardarDatos(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+let db = cargarDatos();
+let ncActivaId = null;
+
+// ==================== ESTADOS ====================
+const ESTADOS = ['Abierta','En análisis','Con acciones','En seguimiento','Cerrada'];
+const ESTADO_BADGE = {
+  'Abierta': 'badge-abierta',
+  'En análisis': 'badge-analisis',
+  'Con acciones': 'badge-acciones',
+  'En seguimiento': 'badge-seguimiento',
+  'Cerrada': 'badge-cerrada'
+};
+const CRIT_BADGE = {
+  'Crítica': 'badge-critica',
+  'Mayor': 'badge-mayor',
+  'Menor': 'badge-menor'
+};
+
+// ==================== MODAL NUEVA ====================
+function abrirModalNueva() {
+  document.getElementById('modalNueva').classList.remove('hidden');
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('nuevaFechaApertura').value = hoy;
+  document.getElementById('nuevaFechaIncidente').value = hoy;
+}
+function cerrarModal() {
+  document.getElementById('modalNueva').classList.add('hidden');
+}
+
+function crearNC() {
+  const detalle = document.getElementById('nuevaDetalle').value.trim();
+  const sector  = document.getElementById('nuevaSector').value.trim();
+  const abiertoPor = document.getElementById('nuevaAbiertoPor').value.trim();
+  const fechaInc = document.getElementById('nuevaFechaIncidente').value;
+  const fechaAp  = document.getElementById('nuevaFechaApertura').value;
+  if (!detalle || !sector || !abiertoPor || !fechaInc || !fechaAp) {
+    showToast('Completá los campos obligatorios (*)');
+    return;
+  }
+  const checkboxes = document.querySelectorAll('#nuevaDeteccionGrid input:checked');
+  const deteccion = Array.from(checkboxes).map(c => c.value);
+  const otros = document.getElementById('nuevaDeteccionOtros').value.trim();
+
+  db.counter++;
+  const nc = {
+    id: Date.now(),
+    numero: `NC-${String(db.counter).padStart(4,'0')}`,
+    estado: 'Abierta',
+    criticidad: null,
+    // Apertura
+    fechaIncidente: fechaInc,
+    fechaApertura: fechaAp,
+    abiertoPor,
+    sector,
+    detalle,
+    deteccion,
+    deteccionOtros: otros,
+    producto: document.getElementById('nuevaProducto').value.trim(),
+    lote: document.getElementById('nuevaLote').value.trim(),
+    // Causa raíz
+    analisis: {},
+    causaRaiz: '',
+    fechaAnalisis: '',
+    analizadoPor: '',
+    // Criticidad
+    severidad: '',
+    probabilidad: '',
+    decisionCriticidad: '',
+    impactoOtros: '',
+    iniciaAccion: [],
+    // Acciones
+    acciones: [
+      { tipo: 'Correctiva', descripcion: '', plazo: '', responsable: '', seguimiento: '', fechaSeguimiento: '', cumplida: '' },
+      { tipo: 'Preventiva', descripcion: '', plazo: '', responsable: '', seguimiento: '', fechaSeguimiento: '', cumplida: '' },
+      { tipo: 'Corrección', descripcion: '', plazo: '', responsable: '', seguimiento: '', fechaSeguimiento: '', cumplida: '' },
+    ],
+    // Seguimientos
+    seguimientos: [],
+    // Efectividad
+    fechaEvaluacion: '',
+    efectividadOk: '',
+    evaluador: '',
+    comentariosEfectividad: '',
+    // Cierre
+    fechaCierre: '',
+    cerradoPor: '',
+    detalleCierre: '',
+  };
+
+  db.ncs.unshift(nc);
+  guardarDatos(db);
+  cerrarModal();
+  // reset form
+  document.getElementById('nuevaDetalle').value='';
+  document.getElementById('nuevaSector').value='';
+  document.getElementById('nuevaAbiertoPor').value='';
+  document.getElementById('nuevaProducto').value='';
+  document.getElementById('nuevaLote').value='';
+  document.getElementById('nuevaDeteccionOtros').value='';
+  document.querySelectorAll('#nuevaDeteccionGrid input').forEach(c=>c.checked=false);
+
+  renderLista();
+  abrirNC(nc.id);
+  showToast(`${nc.numero} creada correctamente`);
+}
+
+// ==================== LISTA ====================
+function renderLista() {
+  const filtroEstado = document.getElementById('filtroEstado').value;
+  const filtroCrit   = document.getElementById('filtroCriticidad').value;
+  const filtroBuscar = document.getElementById('filtroBuscar').value.toLowerCase();
+
+  let ncs = db.ncs.filter(nc => {
+    if (filtroEstado && nc.estado !== filtroEstado) return false;
+    if (filtroCrit && nc.decisionCriticidad !== filtroCrit) return false;
+    if (filtroBuscar) {
+      const haystack = (nc.numero + ' ' + nc.sector + ' ' + nc.detalle + ' ' + nc.abiertoPor).toLowerCase();
+      if (!haystack.includes(filtroBuscar)) return false;
+    }
+    return true;
+  });
+
+  const list = document.getElementById('ncList');
+  if (ncs.length === 0) {
+    list.innerHTML = '<div class="nc-empty">Sin resultados.</div>';
+    return;
+  }
+
+  list.innerHTML = ncs.map(nc => `
+    <div class="nc-item${nc.id === ncActivaId ? ' active' : ''}" onclick="abrirNC(${nc.id})">
+      <div class="nc-item-num">${nc.numero}</div>
+      <div class="nc-item-title">${nc.detalle || '—'}</div>
+      <div class="nc-item-meta">
+        <span class="badge ${ESTADO_BADGE[nc.estado]}">${nc.estado}</span>
+        ${nc.decisionCriticidad ? `<span class="badge ${CRIT_BADGE[nc.decisionCriticidad]}">${nc.decisionCriticidad}</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ==================== ABRIR NC ====================
+function abrirNC(id) {
+  ncActivaId = id;
+  renderLista();
+  const nc = db.ncs.find(n => n.id === id);
+  if (!nc) return;
+
+  document.getElementById('placeholder').classList.add('hidden');
+  document.getElementById('ncDetail').classList.remove('hidden');
+  renderDetalle(nc);
+}
+
+function renderDetalle(nc) {
+  const stateIdx = ESTADOS.indexOf(nc.estado);
+  const steps = ESTADOS.map((e,i) => {
+    let cls = i < stateIdx ? 'done' : (i === stateIdx ? 'current' : '');
+    const icons = ['①','②','③','④','⑤'];
+    return `<div class="progress-step ${cls}"><span class="step-num">${icons[i]}</span>${e}</div>`;
+  }).join('');
+
+  const det = document.getElementById('ncDetail');
+
+  det.innerHTML = `
+    <div class="nc-header">
+      <div class="nc-header-left">
+        <h2>${nc.numero}</h2>
+        <p>${nc.sector} · ${nc.detalle}</p>
+      </div>
+      <div class="nc-header-actions">
+        ${nc.estado !== 'Cerrada' ? `<button class="btn btn-secondary btn-sm" onclick="avanzarEstado(${nc.id})">Avanzar estado →</button>` : ''}
+        <button class="btn btn-danger btn-sm" onclick="eliminarNC(${nc.id})">Eliminar</button>
+      </div>
+    </div>
+
+    <div class="progress-bar">${steps}</div>
+
+    ${renderSeccion1(nc)}
+    ${renderSeccion2(nc)}
+    ${renderSeccion3(nc)}
+    ${renderSeccion4(nc)}
+    ${renderSeccion5(nc)}
+
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="guardarNC(${nc.id})">💾 Guardar cambios</button>
+      ${nc.estado !== 'Cerrada' ? `<button class="btn btn-success" onclick="avanzarEstado(${nc.id})">Avanzar estado →</button>` : '<span class="badge badge-cerrada" style="padding:9px 16px;font-size:12px;">✔ NC Cerrada</span>'}
+    </div>
+  `;
+
+  // Init checboxes deteccion
+  nc.deteccion.forEach(d => {
+    const inp = det.querySelector(`input[data-det="${d}"]`);
+    if (inp) { inp.checked = true; inp.closest('.check-item').classList.add('checked'); }
+  });
+}
+
+function renderSeccion1(nc) {
+  const detTypes = ['Auditorías','Validaciones y calificaciones','Desvíos de procesos','Revisión por la dirección','Evaluación de proveedores','Control interno','Reclamo clientes','Otros'];
+  const detGrid = detTypes.map(d => {
+    const checked = nc.deteccion.includes(d);
+    return `<label class="check-item${checked?' checked':''}">
+      <input type="checkbox" data-det="${d}" ${checked?'checked':''} onchange="toggleDet(this,'${nc.id}')"> ${d}
+    </label>`;
+  }).join('');
+
+  return `
+  <div class="section-card">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title"><span class="section-num">01</span> Apertura de la No Conformidad</div>
+      <span>▾</span>
+    </div>
+    <div class="section-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>N° de No Conformidad</label>
+          <input type="text" value="${nc.numero}" readonly>
+        </div>
+        <div class="form-group">
+          <label>Estado actual</label>
+          <input type="text" value="${nc.estado}" readonly>
+        </div>
+        <div class="form-group">
+          <label>Fecha del incidente</label>
+          <input type="date" id="f_fechaIncidente" value="${nc.fechaIncidente}">
+        </div>
+        <div class="form-group">
+          <label>Fecha de apertura</label>
+          <input type="date" id="f_fechaApertura" value="${nc.fechaApertura}">
+        </div>
+        <div class="form-group">
+          <label>Abierto por</label>
+          <input type="text" id="f_abiertoPor" value="${nc.abiertoPor}">
+        </div>
+        <div class="form-group">
+          <label>Sector</label>
+          <input type="text" id="f_sector" value="${nc.sector}">
+        </div>
+        <div class="form-group form-full">
+          <label>Detalle del incidente</label>
+          <textarea id="f_detalle" rows="3">${nc.detalle}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Producto / Instrumento / Documento</label>
+          <input type="text" id="f_producto" value="${nc.producto}">
+        </div>
+        <div class="form-group">
+          <label>Lote</label>
+          <input type="text" id="f_lote" value="${nc.lote}">
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="form-group">
+        <label>Tipo de detección</label>
+        <div class="deteccion-grid">${detGrid}</div>
+        <input type="text" id="f_deteccionOtros" placeholder="Especificar si marcó Otros..." value="${nc.deteccionOtros}" style="margin-top:6px">
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderSeccion2(nc) {
+  const cats = {
+    'MÉTODO — ¿Cómo se hizo?': [
+      '¿Existe procedimiento?',
+      '¿El procedimiento detalla claramente la tarea a realizar?',
+      '¿El procedimiento contempla todas las etapas del proceso?',
+      '¿Los procedimientos vinculados a este se mantuvieron igual?',
+      '¿Existen formularios que ayuden a realizar la tarea ordenadamente?'
+    ],
+    'MANO DE OBRA — ¿Quién lo hizo?': [
+      '¿El personal se encuentra capacitado en la tarea?',
+      '¿La persona puede cumplir con la tarea sin dificultad?',
+      '¿La cantidad de personas asignadas para la tarea es la adecuada?',
+      '¿Procedió como lo hace habitualmente?',
+      '¿Se mantuvo el personal en el transcurso de la tarea?'
+    ],
+    'MATERIALES — ¿Con qué se hizo?': [
+      '¿Los materiales utilizados fueron los adecuados?',
+      '¿Los materiales estaban aprobados por Control de Calidad?',
+      '¿Los materiales utilizados cumplían especificación?',
+      '¿El proveedor de los materiales es el habitual?',
+      '¿El material es el adecuado para la tarea?'
+    ],
+    'MEDIO AMBIENTE — ¿Dónde se hizo?': [
+      '¿La tarea se realizó en el lugar indicado?',
+      '¿El área se encuentra calificada?',
+      '¿La limpieza del área fue la correcta?',
+      '¿Las condiciones ambientales fueron las adecuadas?',
+      '¿El lugar destinado para la tarea es el adecuado?'
+    ],
+    'MÁQUINAS — ¿Qué equipamiento se usó?': [
+      '¿Los equipos utilizados fueron los adecuados?',
+      '¿Se encuentran calibrados?',
+      '¿Se les realiza mantenimiento preventivo?',
+      '¿Fue manipulado por personal entrenado?'
+    ]
+  };
+
+  let rows = '';
+  for (const [cat, pregs] of Object.entries(cats)) {
+    rows += `<tr><td colspan="4" class="categoria" style="background:var(--surface2);padding:8px 10px;">${cat}</td></tr>`;
+    pregs.forEach(p => {
+      const key = btoa(p).replace(/=/g,'');
+      const val = nc.analisis[key] || '';
+      rows += `<tr>
+        <td style="font-size:12px;padding-right:12px;">${p}</td>
+        <td><div class="radio-group">
+          <label><input type="radio" name="ish_${key}" value="NA" ${val==='NA'?'checked':''}> N/A</label>
+          <label><input type="radio" name="ish_${key}" value="SI" ${val==='SI'?'checked':''}> Sí</label>
+          <label><input type="radio" name="ish_${key}" value="NO" ${val==='NO'?'checked':''}> No</label>
+        </div></td>
+      </tr>`;
+    });
+  }
+
+  return `
+  <div class="section-card">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title"><span class="section-num">02</span> Análisis de Causa Raíz (6M)</div>
+      <span>▾</span>
+    </div>
+    <div class="section-body">
+      <table class="ishikawa-table">
+        <thead><tr><th style="width:60%">Pregunta</th><th>Respuesta</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="divider"></div>
+      <div class="form-grid">
+        <div class="form-group form-full">
+          <label>Causa raíz identificada</label>
+          <textarea id="f_causaRaiz" rows="3" placeholder="Describir la causa raíz real o potencial identificada">${nc.causaRaiz}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Fecha de análisis</label>
+          <input type="date" id="f_fechaAnalisis" value="${nc.fechaAnalisis}">
+        </div>
+        <div class="form-group">
+          <label>Analizado por</label>
+          <input type="text" id="f_analizadoPor" value="${nc.analizadoPor}" placeholder="Nombre y apellido">
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderSeccion3(nc) {
+  const sevs = [
+    { val: 'Baja', desc: 'El evento muestra una desviación de las directivas regulatorias locales que no comprometen la salud del cliente ni ponen en riesgo la actividad comercial.' },
+    { val: 'Moderada', desc: 'El evento demuestra que el sistema de calidad es correcto, pero no se está siguiendo o no es efectivo. Puede comprometer la actividad comercial sin afectar la salud.' },
+    { val: 'Alta', desc: 'Afectan a otras áreas o procesos. Una deficiencia significativa puede resultar en la pérdida de la licencia para operar o derivar un riesgo inmediato para la salud.' }
+  ];
+  const sevGrid = sevs.map(s => `
+    <div class="crit-option${nc.severidad===s.val?' selected-'+s.val.toLowerCase():''}" onclick="setSeveridad(this,'${s.val}',${nc.id})">
+      <div class="crit-option-label">${s.val}</div>
+      <div class="crit-option-desc">${s.desc}</div>
+    </div>`).join('');
+
+  const probs = [
+    { val: 'Baja', desc: 'Improbable que ocurra, existen controles. Evento aislado. Se puede detectar y eliminar rápidamente.' },
+    { val: 'Moderada', desc: 'El evento puede no ser detectado por los controles existentes si no se toman acciones.' },
+    { val: 'Alta', desc: 'La situación puede ocurrir nuevamente. El evento ocurrió muchas veces o se detectó por accidente.' }
+  ];
+  const probGrid = probs.map(p => `
+    <div class="crit-option${nc.probabilidad===p.val?' selected-'+p.val.toLowerCase():''}" onclick="setProbabilidad(this,'${p.val}',${nc.id})">
+      <div class="crit-option-label">${p.val}</div>
+      <div class="crit-option-desc">${p.desc}</div>
+    </div>`).join('');
+
+  const decOpts = ['Crítica','Mayor','Menor'];
+  const decButtons = decOpts.map(d => `
+    <button class="btn ${nc.decisionCriticidad===d?'btn-primary':'btn-secondary'} btn-sm" onclick="setDecision('${d}',${nc.id})">${d}</button>
+  `).join('');
+
+  const accionOpts = ['Correctiva','Preventiva','Corrección'];
+  const accionChecks = accionOpts.map(a => {
+    const checked = (nc.iniciaAccion||[]).includes(a);
+    return `<label class="check-item${checked?' checked':''}"><input type="checkbox" data-accion="${a}" ${checked?'checked':''} onchange="toggleAccion(this,${nc.id})"> Acción ${a}</label>`;
+  }).join('');
+
+  return `
+  <div class="section-card">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title"><span class="section-num">03</span> Criticidad y Decisión</div>
+      <span>▾</span>
+    </div>
+    <div class="section-body">
+      <div class="form-group" style="margin-bottom:16px">
+        <label>Severidad</label>
+        <div class="criticidad-grid" id="sevGrid_${nc.id}">${sevGrid}</div>
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label>Probabilidad de ocurrencia</label>
+        <div class="criticidad-grid" id="probGrid_${nc.id}">${probGrid}</div>
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label>Decisión de criticidad</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">${decButtons}</div>
+      </div>
+      <div class="divider"></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>¿Impacta sobre otros productos / procesos?</label>
+          <select id="f_impactoOtros">
+            <option value="">—</option>
+            <option value="Si" ${nc.impactoOtros==='Si'?'selected':''}>Sí</option>
+            <option value="No" ${nc.impactoOtros==='No'?'selected':''}>No</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Se inicia acción</label>
+          <div class="deteccion-grid" style="grid-template-columns:1fr 1fr 1fr">${accionChecks}</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderSeccion4(nc) {
+  const acciones = nc.acciones || [];
+  const rows = acciones.map((a,i) => `
+    <tr>
+      <td><span class="tipo-badge tipo-${a.tipo.toLowerCase()}">${a.tipo}</span></td>
+      <td><textarea onchange="updateAccion(${nc.id},${i},'descripcion',this.value)" rows="2" style="width:100%;padding:6px;border:1px solid var(--border);font-family:inherit;font-size:11px;">${a.descripcion}</textarea></td>
+      <td><input type="date" value="${a.plazo}" onchange="updateAccion(${nc.id},${i},'plazo',this.value)"></td>
+      <td><input type="text" value="${a.responsable}" placeholder="Responsable" onchange="updateAccion(${nc.id},${i},'responsable',this.value)"></td>
+      <td>
+        <select onchange="updateAccion(${nc.id},${i},'cumplida',this.value)">
+          <option value="">—</option>
+          <option value="Si" ${a.cumplida==='Si'?'selected':''}>Sí</option>
+          <option value="No" ${a.cumplida==='No'?'selected':''}>No</option>
+          <option value="En curso" ${a.cumplida==='En curso'?'selected':''}>En curso</option>
+        </select>
+      </td>
+    </tr>
+  `).join('');
+
+  return `
+  <div class="section-card">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title"><span class="section-num">04</span> Acciones (CAPA)</div>
+      <span>▾</span>
+    </div>
+    <div class="section-body">
+      <table class="acciones-table">
+        <thead>
+          <tr>
+            <th style="width:100px">Tipo</th>
+            <th>Descripción</th>
+            <th style="width:110px">Plazo</th>
+            <th style="width:130px">Responsable</th>
+            <th style="width:90px">Cumplida</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function renderSeccion5(nc) {
+  const seguimientos = (nc.seguimientos || []).map((s,i) => `
+    <div class="seguimiento-item">
+      <div class="meta">
+        <span>📅 ${s.fecha}</span>
+        <span>👤 ${s.responsable}</span>
+        <button onclick="eliminarSeguimiento(${nc.id},${i})" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:11px;margin-left:auto;">Eliminar</button>
+      </div>
+      <div style="font-size:12px;line-height:1.5">${s.descripcion}</div>
+    </div>
+  `).join('') || '<p style="font-size:12px;color:var(--text-muted);">Sin seguimientos registrados aún.</p>';
+
+  return `
+  <div class="section-card">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title"><span class="section-num">05</span> Seguimientos</div>
+      <span>▾</span>
+    </div>
+    <div class="section-body">
+      <div id="seguimientosList">${seguimientos}</div>
+      <div class="divider"></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Fecha de seguimiento</label>
+          <input type="date" id="f_segFecha" value="${new Date().toISOString().split('T')[0]}">
+        </div>
+        <div class="form-group">
+          <label>Responsable</label>
+          <input type="text" id="f_segResponsable" placeholder="Nombre">
+        </div>
+        <div class="form-group form-full">
+          <label>Observación / Avance</label>
+          <textarea id="f_segDescripcion" rows="2" placeholder="Describir el avance o novedad"></textarea>
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="agregarSeguimiento(${nc.id})">+ Agregar seguimiento</button>
+
+      <div class="divider"></div>
+      <div style="font-weight:600;font-size:13px;margin-bottom:12px;font-family:'IBM Plex Mono',monospace;letter-spacing:0.04em;">VERIFICACIÓN DE EFECTIVIDAD</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Fecha de evaluación</label>
+          <input type="date" id="f_fechaEvaluacion" value="${nc.fechaEvaluacion}">
+        </div>
+        <div class="form-group">
+          <label>Evaluador</label>
+          <input type="text" id="f_evaluador" value="${nc.evaluador}" placeholder="Nombre">
+        </div>
+        <div class="form-group">
+          <label>¿Las acciones fueron efectivas?</label>
+          <select id="f_efectividadOk">
+            <option value="">—</option>
+            <option value="Si" ${nc.efectividadOk==='Si'?'selected':''}>Sí</option>
+            <option value="No" ${nc.efectividadOk==='No'?'selected':''}>No</option>
+          </select>
+        </div>
+        <div class="form-group form-full">
+          <label>Comentarios de efectividad</label>
+          <textarea id="f_comentariosEfectividad" rows="2" placeholder="¿Las acciones eliminaron la causa raíz? ¿Hubo impacto negativo en el proceso?">${nc.comentariosEfectividad}</textarea>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div style="font-weight:600;font-size:13px;margin-bottom:12px;font-family:'IBM Plex Mono',monospace;letter-spacing:0.04em;">CIERRE</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Fecha de cierre</label>
+          <input type="date" id="f_fechaCierre" value="${nc.fechaCierre}">
+        </div>
+        <div class="form-group">
+          <label>Cerrado por</label>
+          <input type="text" id="f_cerradoPor" value="${nc.cerradoPor}" placeholder="Nombre">
+        </div>
+        <div class="form-group form-full">
+          <label>Detalle de cierre</label>
+          <textarea id="f_detalleCierre" rows="2" placeholder="Resumen del cierre de la NC">${nc.detalleCierre}</textarea>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ==================== ACTIONS ====================
+function toggleSection(header) {
+  const body = header.nextElementSibling;
+  const arrow = header.querySelector('span:last-child');
+  body.classList.toggle('hidden');
+  arrow.textContent = body.classList.contains('hidden') ? '▸' : '▾';
+}
+
+function toggleDet(cb, ncId) {
+  cb.closest('.check-item').classList.toggle('checked', cb.checked);
+}
+
+function toggleAccion(cb, ncId) {
+  cb.closest('.check-item').classList.toggle('checked', cb.checked);
+}
+
+function setSeveridad(el, val, ncId) {
+  const nc = db.ncs.find(n => n.id === ncId);
+  if (!nc) return;
+  nc.severidad = val;
+  document.querySelectorAll(`#sevGrid_${ncId} .crit-option`).forEach(c => {
+    c.className = 'crit-option';
+  });
+  el.classList.add('selected-' + val.toLowerCase());
+  guardarDatos(db);
+}
+
+function setProbabilidad(el, val, ncId) {
+  const nc = db.ncs.find(n => n.id === ncId);
+  if (!nc) return;
+  nc.probabilidad = val;
+  document.querySelectorAll(`#probGrid_${ncId} .crit-option`).forEach(c => {
+    c.className = 'crit-option';
+  });
+  el.classList.add('selected-' + val.toLowerCase());
+  guardarDatos(db);
+  calcularDecision(ncId);
+}
+
+function calcularDecision(ncId) {
+  const nc = db.ncs.find(n => n.id === ncId);
+  if (!nc || !nc.severidad || !nc.probabilidad) return;
+  const matrix = {
+    'Alta-Alta': 'Crítica', 'Alta-Moderada': 'Mayor', 'Alta-Baja': 'Mayor',
+    'Moderada-Alta': 'Mayor', 'Moderada-Moderada': 'Mayor', 'Moderada-Baja': 'Menor',
+    'Baja-Alta': 'Menor', 'Baja-Moderada': 'Menor', 'Baja-Baja': 'Menor'
+  };
+  const key = nc.severidad + '-' + nc.probabilidad;
+  const decision = matrix[key] || '';
+  if (decision) setDecision(decision, ncId);
+}
+
+function setDecision(val, ncId) {
+  const nc = db.ncs.find(n => n.id === ncId);
+  if (!nc) return;
+  nc.decisionCriticidad = val;
+  guardarDatos(db);
+  // update buttons
+  document.querySelectorAll(`[onclick^="setDecision('${val}']`).forEach(b=>b.className='btn btn-primary btn-sm');
+  ['Crítica','Mayor','Menor'].filter(d=>d!==val).forEach(d=>{
+    document.querySelectorAll(`[onclick^="setDecision('${d}']`).forEach(b=>b.className='btn btn-secondary btn-sm');
+  });
+  renderLista();
+}
+
+function updateAccion(ncId, idx, field, value) {
+  const nc = db.ncs.find(n => n.id === ncId);
+  if (!nc) return;
+  nc.acciones[idx][field] = value;
+  guardarDatos(db);
+}
+
+function agregarSeguimiento(ncId) {
+  const nc = db.ncs.find(n => n.id === ncId);
+  if (!nc) return;
+  const fecha = document.getElementById('f_segFecha').value;
+  const resp  = document.getElementById('f_segResponsable').value.trim();
+  const desc  = document.getElementById('f_segDescripcion').value.trim();
+  if (!fecha || !resp || !desc) { showToast('Completá fecha, responsable y observación'); return; }
+  if (!nc.seguimientos) nc.seguimientos = [];
+  nc.seguimientos.push({ fecha, responsable: resp, descripcion: desc });
+  guardarDatos(db);
+  document.getElementById('f_segDescripcion').value = '';
+  renderDetalle(nc);
+  showToast('Seguimiento agregado');
+}
+
+function eliminarSeguimiento(ncId, idx) {
+  const nc = db.ncs.find(n => n.id === ncId);
+  if (!nc) return;
+  nc.seguimientos.splice(idx, 1);
+  guardarDatos(db);
+  renderDetalle(nc);
+}
+
+function guardarNC(ncId) {
+  const nc = db.ncs.find(n => n.id === ncId);
+  if (!nc) return;
+
+  // Apertura
+  nc.fechaIncidente = document.getElementById('f_fechaIncidente').value;
+  nc.fechaApertura  = document.getElementById('f_fechaApertura').value;
+  nc.abiertoPor     = document.getElementById('f_abiertoPor').value;
+  nc.sector         = document.getElementById('f_sector').value;
+  nc.detalle        = document.getElementById('f_detalle').value;
+  nc.producto       = document.getElementById('f_producto').value;
+  nc.lote           = document.getElementById('f_lote').value;
+  nc.deteccionOtros = document.getElementById('f_deteccionOtros').value;
+
+  const detchecks = document.querySelectorAll('[data-det]:checked');
+  nc.deteccion = Array.from(detchecks).map(c => c.value);
+
+  const accChecks = document.querySelectorAll('[data-accion]:checked');
+  nc.iniciaAccion = Array.from(accChecks).map(c => c.value);
+
+  // Causa raiz
+  nc.causaRaiz    = document.getElementById('f_causaRaiz').value;
+  nc.fechaAnalisis = document.getElementById('f_fechaAnalisis').value;
+  nc.analizadoPor = document.getElementById('f_analizadoPor').value;
+
+  // Ishikawa
+  nc.analisis = {};
+  document.querySelectorAll('[name^="ish_"]:checked').forEach(r => {
+    const key = r.name.replace('ish_','');
+    nc.analisis[key] = r.value;
+  });
+
+  // Criticidad
+  nc.impactoOtros = document.getElementById('f_impactoOtros').value;
+
+  // Efectividad y cierre
+  nc.fechaEvaluacion = document.getElementById('f_fechaEvaluacion').value;
+  nc.evaluador = document.getElementById('f_evaluador').value;
+  nc.efectividadOk = document.getElementById('f_efectividadOk').value;
+  nc.comentariosEfectividad = document.getElementById('f_comentariosEfectividad').value;
+  nc.fechaCierre = document.getElementById('f_fechaCierre').value;
+  nc.cerradoPor  = document.getElementById('f_cerradoPor').value;
+  nc.detalleCierre = document.getElementById('f_detalleCierre').value;
+
+  guardarDatos(db);
+  renderLista();
+  showToast(`${nc.numero} guardada correctamente ✔`);
+}
+
+function avanzarEstado(ncId) {
+  const nc = db.ncs.find(n => n.id === ncId);
+  if (!nc) return;
+  const idx = ESTADOS.indexOf(nc.estado);
+  if (idx < ESTADOS.length - 1) {
+    nc.estado = ESTADOS[idx + 1];
+    guardarDatos(db);
+    renderLista();
+    renderDetalle(nc);
+    showToast(`Estado: ${nc.estado}`);
+  }
+}
+
+function eliminarNC(ncId) {
+  if (!confirm('¿Eliminar esta No Conformidad? Esta acción no se puede deshacer.')) return;
+  db.ncs = db.ncs.filter(n => n.id !== ncId);
+  guardarDatos(db);
+  ncActivaId = null;
+  renderLista();
+  document.getElementById('ncDetail').classList.add('hidden');
+  document.getElementById('placeholder').classList.remove('hidden');
+  showToast('NC eliminada');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// Init
+renderLista();
+</script>
+</body>
+</html>
