@@ -636,6 +636,9 @@
     margin-top: 2px;
   }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -682,6 +685,10 @@
       </div>
     </div>
 
+    <div class="sidebar-section" style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-secondary btn-sm" style="flex:1" onclick="mostrarDashboard()">📊 Dashboard</button>
+      <button class="btn btn-secondary btn-sm" style="flex:1" onclick="exportarPDF()">📄 Exportar PDF</button>
+    </div>
     <div class="nc-list" id="ncList">
       <div class="nc-empty">No hay registros aún.<br>Creá la primera NC.</div>
     </div>
@@ -785,7 +792,9 @@ async function cargarDatos() {
     if (data.error) throw new Error(data.error);
     db.ncs = data.ncs || [];
     db.counter = db.ncs.reduce((max, nc) => {
-      const num = parseInt(nc.numero.replace('NC-','')) || 0;
+      const match = nc.numero.match(/NC (\d+)\/(\d+)/);
+      const year = match ? parseInt(match[2]) : 0;
+      const num = (year === new Date().getFullYear() && match) ? parseInt(match[1]) : 0;
       return Math.max(max, num);
     }, 0);
     console.log('Datos cargados:', db.ncs.length, 'NCs');
@@ -896,6 +905,7 @@ function renderLista() {
 
 // ==================== ABRIR NC ====================
 function abrirNC(id) {
+  ocultarDashboard();
   ncActivaId = id;
   renderLista();
   const nc = db.ncs.find(n => n.id === id);
@@ -1439,7 +1449,7 @@ async function crearNC() {
   db.counter++;
   const nc = {
     id: Date.now(),
-    numero: `NC-${String(db.counter).padStart(4,'0')}`,
+    numero: `NC ${String(db.counter).padStart(3,'0')}/${new Date().getFullYear()}`,
     estado: 'Abierta', criticidad: null,
     fechaIncidente: fechaInc, fechaApertura: fechaAp, abiertoPor, sector, detalle,
     deteccion, deteccionOtros: document.getElementById('nuevaDeteccionOtros').value.trim(),
@@ -1497,6 +1507,312 @@ function eliminarAccion(ncId, idx) {
     newSec.innerHTML = renderSeccion4(nc);
     sec4.replaceWith(newSec.firstElementChild);
   }
+}
+
+// ==================== DASHBOARD ====================
+function mostrarDashboard() {
+  document.getElementById('placeholder').classList.add('hidden');
+  document.getElementById('ncDetail').classList.add('hidden');
+  
+  let dashEl = document.getElementById('dashboardView');
+  if (!dashEl) {
+    dashEl = document.createElement('div');
+    dashEl.id = 'dashboardView';
+    dashEl.style.maxWidth = '900px';
+    document.getElementById('mainContent').appendChild(dashEl);
+  }
+  dashEl.classList.remove('hidden');
+  ncActivaId = null;
+  renderLista();
+  renderDashboard();
+}
+
+function renderDashboard() {
+  const el = document.getElementById('dashboardView');
+  const ncs = db.ncs;
+  const year = new Date().getFullYear();
+  
+  // Stats
+  const total = ncs.length;
+  const abiertas = ncs.filter(n => n.estado !== 'Cerrada').length;
+  const cerradas = ncs.filter(n => n.estado === 'Cerrada').length;
+  const criticas = ncs.filter(n => n.decisionCriticidad === 'Cr\u00edtica' && n.estado !== 'Cerrada').length;
+  const vencidas = ncs.filter(n => {
+    if (n.estado === 'Cerrada') return false;
+    return (n.acciones || []).some(a => a.plazo && !a.cumplida && new Date(a.plazo) < new Date());
+  }).length;
+
+  el.innerHTML = `
+    <div style="margin-bottom:24px;">
+      <h2 style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;margin-bottom:4px;">📊 Dashboard CAPA</h2>
+      <p style="font-size:13px;color:var(--text-muted);">Resumen de No Conformidades · ${year}</p>
+    </div>
+    
+    <div class="stats-row">
+      <div class="stat-chip"><span class="num" style="color:var(--text)">${total}</span><span class="lbl">Total</span></div>
+      <div class="stat-chip"><span class="num" style="color:var(--state-abierta)">${abiertas}</span><span class="lbl">Abiertas</span></div>
+      <div class="stat-chip"><span class="num" style="color:var(--state-cerrada)">${cerradas}</span><span class="lbl">Cerradas</span></div>
+      <div class="stat-chip"><span class="num" style="color:#c8410a">${criticas}</span><span class="lbl">Cr\u00edticas</span></div>
+      <div class="stat-chip"><span class="num" style="color:#dc3545">${vencidas}</span><span class="lbl">Vencidas</span></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div class="section-card">
+        <div class="section-header" style="cursor:default">
+          <div class="section-title">NC por Mes</div>
+        </div>
+        <div class="section-body" style="padding:16px;">
+          <canvas id="chartNCporMes" height="220"></canvas>
+        </div>
+      </div>
+      <div class="section-card">
+        <div class="section-header" style="cursor:default">
+          <div class="section-title">NC por Estado</div>
+        </div>
+        <div class="section-body" style="padding:16px;">
+          <canvas id="chartNCporEstado" height="220"></canvas>
+        </div>
+      </div>
+      <div class="section-card">
+        <div class="section-header" style="cursor:default">
+          <div class="section-title">NC por \u00c1rea / Sector</div>
+        </div>
+        <div class="section-body" style="padding:16px;">
+          <canvas id="chartNCporSector" height="220"></canvas>
+        </div>
+      </div>
+      <div class="section-card">
+        <div class="section-header" style="cursor:default">
+          <div class="section-title">NC por Criticidad</div>
+        </div>
+        <div class="section-body" style="padding:16px;">
+          <canvas id="chartNCporCriticidad" height="220"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card" style="margin-top:20px;">
+      <div class="section-header" style="cursor:default">
+        <div class="section-title">\u26a0\ufe0f Acciones Pendientes por Responsable</div>
+      </div>
+      <div class="section-body" style="padding:0;">
+        <table class="acciones-table" id="tablaPendientes">
+          <thead>
+            <tr>
+              <th>Responsable</th>
+              <th>NC</th>
+              <th>Tipo</th>
+              <th>Descripci\u00f3n</th>
+              <th>Plazo</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyPendientes"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  // NC por Mes (columnas)
+  const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const ncPorMes = new Array(12).fill(0);
+  const ncCerradasPorMes = new Array(12).fill(0);
+  ncs.forEach(nc => {
+    const fecha = nc.fechaApertura || nc.fechaIncidente;
+    if (fecha) {
+      const m = new Date(fecha).getMonth();
+      ncPorMes[m]++;
+      if (nc.estado === 'Cerrada') ncCerradasPorMes[m]++;
+    }
+  });
+  
+  new Chart(document.getElementById('chartNCporMes'), {
+    type: 'bar',
+    data: {
+      labels: meses,
+      datasets: [
+        { label: 'Abiertas', data: ncPorMes.map((v,i) => v - ncCerradasPorMes[i]), backgroundColor: '#c8410a', borderRadius: 3 },
+        { label: 'Cerradas', data: ncCerradasPorMes, backgroundColor: '#1a5c3a', borderRadius: 3 }
+      ]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+
+  // NC por Estado
+  const estadoCounts = {};
+  ncs.forEach(nc => { estadoCounts[nc.estado] = (estadoCounts[nc.estado] || 0) + 1; });
+  const estadoColors = { 'Abierta':'#c8410a', 'En an\u00e1lisis':'#f0a500', 'Con acciones':'#1a4a7a', 'En seguimiento':'#6b3fa0', 'Cerrada':'#1a5c3a' };
+  
+  new Chart(document.getElementById('chartNCporEstado'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(estadoCounts),
+      datasets: [{ data: Object.values(estadoCounts), backgroundColor: Object.keys(estadoCounts).map(e => estadoColors[e] || '#999') }]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } }
+  });
+
+  // NC por Sector
+  const sectorCounts = {};
+  ncs.forEach(nc => { if (nc.sector) sectorCounts[nc.sector] = (sectorCounts[nc.sector] || 0) + 1; });
+  const sectorLabels = Object.keys(sectorCounts);
+  const sectorColors = ['#c8410a','#1a4a7a','#f0a500','#1a5c3a','#6b3fa0','#d4770b','#2d8659','#8b1a1a'];
+  
+  new Chart(document.getElementById('chartNCporSector'), {
+    type: 'bar',
+    data: {
+      labels: sectorLabels,
+      datasets: [{ label: 'NCs', data: Object.values(sectorCounts), backgroundColor: sectorLabels.map((_,i) => sectorColors[i % sectorColors.length]), borderRadius: 3 }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+
+  // NC por Criticidad
+  const critCounts = { 'Cr\u00edtica': 0, 'Mayor': 0, 'Menor': 0, 'Sin definir': 0 };
+  ncs.forEach(nc => {
+    if (nc.decisionCriticidad && critCounts.hasOwnProperty(nc.decisionCriticidad)) critCounts[nc.decisionCriticidad]++;
+    else critCounts['Sin definir']++;
+  });
+  
+  new Chart(document.getElementById('chartNCporCriticidad'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(critCounts),
+      datasets: [{ data: Object.values(critCounts), backgroundColor: ['#c8410a','#f0a500','#1a4a7a','#ccc'] }]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } }
+  });
+
+  // Tabla de acciones pendientes por responsable
+  const tbody = document.getElementById('tbodyPendientes');
+  const pendientes = [];
+  ncs.forEach(nc => {
+    if (nc.estado === 'Cerrada') return;
+    (nc.acciones || []).forEach(a => {
+      if (a.cumplida === 'Si' || !a.descripcion) return;
+      const hoy = new Date();
+      const plazoDate = a.plazo ? new Date(a.plazo) : null;
+      let estadoTag = '';
+      if (plazoDate && plazoDate < hoy) {
+        estadoTag = '<span style="color:#dc3545;font-weight:600;">VENCIDA</span>';
+      } else if (plazoDate) {
+        const dias = Math.round((plazoDate - hoy) / (1000*60*60*24));
+        if (dias <= 7) estadoTag = '<span style="color:#f0a500;font-weight:600;">' + dias + ' d\u00edas</span>';
+        else estadoTag = '<span style="color:var(--text-muted);">' + dias + ' d\u00edas</span>';
+      } else {
+        estadoTag = '<span style="color:var(--text-muted);">Sin plazo</span>';
+      }
+      pendientes.push({
+        responsable: a.responsable || 'Sin asignar',
+        nc: nc.numero,
+        tipo: a.tipo,
+        descripcion: a.descripcion,
+        plazo: a.plazo ? new Date(a.plazo).toLocaleDateString('es-AR') : '\u2014',
+        estadoTag,
+        plazoDate: plazoDate || new Date('2099-01-01')
+      });
+    });
+  });
+  
+  // Sort: vencidas first, then by plazo
+  pendientes.sort((a,b) => a.plazoDate - b.plazoDate);
+  
+  if (pendientes.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px;">\ud83c\udf89 No hay acciones pendientes</td></tr>';
+  } else {
+    tbody.innerHTML = pendientes.map(p => {
+      const tipoCls = p.tipo === 'Correctiva' ? 'tipo-correctiva' : (p.tipo === 'Preventiva' ? 'tipo-preventiva' : 'tipo-correccion');
+      return '<tr>' +
+        '<td style="font-weight:500;font-size:12px;">' + p.responsable + '</td>' +
+        '<td style="font-family:\'IBM Plex Mono\',monospace;font-size:11px;color:var(--accent);">' + p.nc + '</td>' +
+        '<td><span class="tipo-badge ' + tipoCls + '">' + p.tipo + '</span></td>' +
+        '<td style="font-size:12px;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + p.descripcion + '</td>' +
+        '<td style="font-size:12px;">' + p.plazo + '</td>' +
+        '<td>' + p.estadoTag + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+}
+
+// ==================== EXPORTAR PDF ====================
+function exportarPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('landscape', 'mm', 'a4');
+  const ncs = db.ncs;
+  const hoy = new Date().toLocaleDateString('es-AR');
+  
+  // Header
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(16);
+  doc.text('Reporte de No Conformidades - CAPA', 14, 18);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.text(`Fecha: ${hoy} | Total: ${ncs.length} NCs`, 14, 25);
+  
+  // Table
+  const headers = [['N\u00b0','Estado','Criticidad','Sector','Detalle','Abierto por','Fecha apertura','Acciones pendientes']];
+  const rows = ncs.map(nc => {
+    const pendientes = (nc.acciones || []).filter(a => a.cumplida !== 'Si' && a.descripcion).length;
+    return [
+      nc.numero,
+      nc.estado,
+      nc.decisionCriticidad || '—',
+      nc.sector,
+      nc.detalle ? (nc.detalle.length > 60 ? nc.detalle.substring(0,60)+'...' : nc.detalle) : '—',
+      nc.abiertoPor,
+      nc.fechaApertura || '—',
+      pendientes > 0 ? pendientes + ' pendiente(s)' : 'Ninguna'
+    ];
+  });
+
+  doc.autoTable({
+    head: headers,
+    body: rows,
+    startY: 32,
+    styles: { fontSize: 8, cellPadding: 3, font: 'helvetica' },
+    headStyles: { fillColor: [30,25,22], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+    alternateRowStyles: { fillColor: [248,247,243] },
+    columnStyles: {
+      0: { cellWidth: 28 },
+      1: { cellWidth: 28 },
+      2: { cellWidth: 22 },
+      3: { cellWidth: 25 },
+      4: { cellWidth: 80 },
+      5: { cellWidth: 30 },
+      6: { cellWidth: 25 },
+      7: { cellWidth: 30 },
+    },
+    didParseCell: function(data) {
+      if (data.section === 'body' && data.column.index === 1) {
+        const val = data.cell.raw;
+        if (val === 'Abierta') data.cell.styles.textColor = [200,65,10];
+        else if (val === 'Cerrada') data.cell.styles.textColor = [26,92,58];
+        else if (val === 'En an\u00e1lisis') data.cell.styles.textColor = [180,120,0];
+      }
+      if (data.section === 'body' && data.column.index === 2) {
+        const val = data.cell.raw;
+        if (val === 'Cr\u00edtica') { data.cell.styles.textColor = [200,65,10]; data.cell.styles.fontStyle = 'bold'; }
+      }
+    }
+  });
+
+  // Footer
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.text(`REG-SOP-AC-036-A | P\u00e1gina ${i} de ${pageCount}`, doc.internal.pageSize.width - 14, doc.internal.pageSize.height - 8, { align: 'right' });
+  }
+
+  doc.save(`Reporte_NC_CAPA_${hoy.replace(/\//g,'-')}.pdf`);
+  showToast('PDF exportado \u2714');
+}
+
+// Hide dashboard when opening NC
+function ocultarDashboard() {
+  const d = document.getElementById('dashboardView');
+  if (d) d.classList.add('hidden');
 }
 
 function showToast(msg) {
