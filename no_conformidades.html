@@ -687,7 +687,7 @@
 
     <div class="sidebar-section" style="display:flex;gap:8px;flex-wrap:wrap;">
       <button class="btn btn-secondary btn-sm" style="flex:1" onclick="mostrarDashboard()">📊 Dashboard</button>
-      <button class="btn btn-secondary btn-sm" style="flex:1" onclick="exportarPDF()">📄 Exportar PDF</button>
+      <button class="btn btn-secondary btn-sm" style="flex:1" onclick="exportarResumenPDF()">📄 Resumen PDF</button>
     </div>
     <div class="nc-list" id="ncList">
       <div class="nc-empty">No hay registros aún.<br>Creá la primera NC.</div>
@@ -933,6 +933,7 @@ function renderDetalle(nc) {
         <p>${nc.sector} · ${nc.detalle}</p>
       </div>
       <div class="nc-header-actions">
+        <button class="btn btn-secondary btn-sm" onclick="exportarNC_PDF(${nc.id})">📄 PDF</button>
         ${nc.estado !== 'Cerrada' ? `<button class="btn btn-secondary btn-sm" onclick="avanzarEstado(${nc.id})">Avanzar estado →</button>` : ''}
         <button class="btn btn-danger btn-sm" onclick="eliminarNC(${nc.id})">Eliminar</button>
       </div>
@@ -1815,10 +1816,9 @@ function renderDashboard() {
 }
 
 // ==================== EXPORTAR PDF ====================
-function exportarPDF() {
+function exportarResumenPDF() {
   if (typeof window.jspdf === 'undefined') {
     showToast('Cargando librería PDF... intentá de nuevo en unos segundos');
-    // Try to load it dynamically
     const s1 = document.createElement('script');
     s1.src = 'https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js';
     s1.onload = function() {
@@ -1829,77 +1829,256 @@ function exportarPDF() {
     document.head.appendChild(s1);
     return;
   }
+  
+  // Quick summary PDF of all NCs
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('landscape', 'mm', 'a4');
   const ncs = db.ncs;
   const hoy = new Date().toLocaleDateString('es-AR');
-  
-  // Header
   doc.setFont('helvetica','bold');
   doc.setFontSize(16);
-  doc.text('Reporte de No Conformidades - CAPA', 14, 18);
+  doc.text('Resumen de No Conformidades - CAPA', 14, 18);
   doc.setFont('helvetica','normal');
   doc.setFontSize(10);
-  doc.text(`Fecha: ${hoy} | Total: ${ncs.length} NCs`, 14, 25);
-  
-  // Table
-  const headers = [['N\u00b0','Estado','Criticidad','Sector','Detalle','Abierto por','Fecha apertura','Acciones pendientes']];
+  doc.text('Fecha: ' + hoy + ' | Total: ' + ncs.length + ' NCs', 14, 25);
+  const headers = [['N°','Estado','Criticidad','Sector','Detalle','Abierto por','Fecha','Pendientes']];
   const rows = ncs.map(nc => {
-    const pendientes = (nc.acciones || []).filter(a => a.cumplida !== 'Si' && a.descripcion).length;
-    return [
-      nc.numero,
-      nc.estado,
-      nc.decisionCriticidad || '—',
-      nc.sector,
-      nc.detalle ? (nc.detalle.length > 60 ? nc.detalle.substring(0,60)+'...' : nc.detalle) : '—',
-      nc.abiertoPor,
-      nc.fechaApertura || '—',
-      pendientes > 0 ? pendientes + ' pendiente(s)' : 'Ninguna'
-    ];
+    const pend = (nc.acciones||[]).filter(a=>a.cumplida!=='Si'&&a.descripcion).length;
+    return [nc.numero, nc.estado, nc.decisionCriticidad||'\u2014', nc.sector,
+      nc.detalle?(nc.detalle.length>60?nc.detalle.substring(0,60)+'...':nc.detalle):'\u2014',
+      nc.abiertoPor, nc.fechaApertura||'\u2014', pend>0?pend+' pend.':'Ninguna'];
   });
+  doc.autoTable({ head:headers, body:rows, startY:32,
+    styles:{fontSize:8,cellPadding:3}, headStyles:{fillColor:[30,25,22],fontSize:8},
+    alternateRowStyles:{fillColor:[248,247,243]}
+  });
+  doc.save('Resumen_NC_CAPA_'+hoy.replace(/\//g,'-')+'.pdf');
+  showToast('Resumen PDF descargado');
+}
 
-  doc.autoTable({
-    head: headers,
-    body: rows,
-    startY: 32,
-    styles: { fontSize: 8, cellPadding: 3, font: 'helvetica' },
-    headStyles: { fillColor: [30,25,22], textColor: 255, fontStyle: 'bold', fontSize: 8 },
-    alternateRowStyles: { fillColor: [248,247,243] },
-    columnStyles: {
-      0: { cellWidth: 28 },
-      1: { cellWidth: 28 },
-      2: { cellWidth: 22 },
-      3: { cellWidth: 25 },
-      4: { cellWidth: 80 },
-      5: { cellWidth: 30 },
-      6: { cellWidth: 25 },
-      7: { cellWidth: 30 },
-    },
-    didParseCell: function(data) {
-      if (data.section === 'body' && data.column.index === 1) {
-        const val = data.cell.raw;
-        if (val === 'Abierta') data.cell.styles.textColor = [200,65,10];
-        else if (val === 'Cerrada') data.cell.styles.textColor = [26,92,58];
-        else if (val === 'En an\u00e1lisis') data.cell.styles.textColor = [180,120,0];
-      }
-      if (data.section === 'body' && data.column.index === 2) {
-        const val = data.cell.raw;
-        if (val === 'Cr\u00edtica') { data.cell.styles.textColor = [200,65,10]; data.cell.styles.fontStyle = 'bold'; }
-      }
+function exportarNC_PDF(ncId) {
+  const nc = db.ncs.find(n => n.id === ncId);
+  if (!nc) return;
+
+  if (typeof window.jspdf === 'undefined') {
+    showToast('Cargando librería PDF... intentá de nuevo en unos segundos');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('portrait', 'mm', 'a4');
+  const W = doc.internal.pageSize.width;
+  const margin = 14;
+  let y = 14;
+
+  function addTitle(text, size) {
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(size || 12);
+    doc.setTextColor(30,25,22);
+    doc.text(text, margin, y);
+    y += (size || 12) * 0.5 + 2;
+  }
+  function addLabel(label, value) {
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text(label, margin, y);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(10);
+    doc.setTextColor(30,25,22);
+    doc.text(String(value || '\u2014'), margin + 50, y);
+    y += 6;
+  }
+  function addSection(num, title) {
+    if (y > 255) { doc.addPage(); y = 14; }
+    y += 4;
+    doc.setFillColor(30,25,22);
+    doc.rect(margin, y - 4, W - margin*2, 8, 'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(10);
+    doc.setTextColor(255);
+    doc.text(num + '  ' + title, margin + 3, y + 1);
+    y += 10;
+    doc.setTextColor(30,25,22);
+  }
+  function addParagraph(text) {
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(9);
+    doc.setTextColor(30,25,22);
+    const lines = doc.splitTextToSize(String(text || '\u2014'), W - margin*2);
+    if (y + lines.length * 4.5 > 275) { doc.addPage(); y = 14; }
+    doc.text(lines, margin, y);
+    y += lines.length * 4.5 + 2;
+  }
+  function checkPage(needed) {
+    if (y + needed > 275) { doc.addPage(); y = 14; }
+  }
+
+  // HEADER
+  doc.setFillColor(200,65,10);
+  doc.rect(0, 0, W, 3, 'F');
+  y = 14;
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(18);
+  doc.setTextColor(200,65,10);
+  doc.text(nc.numero, margin, y);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text('REG-SOP-AC-036-A', W - margin, y, { align: 'right' });
+  y += 6;
+  doc.setFontSize(9);
+  doc.text('Estado: ' + nc.estado + (nc.decisionCriticidad ? '  |  Criticidad: ' + nc.decisionCriticidad : ''), margin, y);
+  y += 4;
+  doc.setDrawColor(200);
+  doc.line(margin, y, W - margin, y);
+  y += 6;
+
+  // SECCION 1: APERTURA
+  addSection('01', 'APERTURA DE LA NO CONFORMIDAD');
+  addLabel('Fecha incidente:', nc.fechaIncidente);
+  addLabel('Fecha apertura:', nc.fechaApertura);
+  addLabel('Abierto por:', nc.abiertoPor);
+  addLabel('Sector:', nc.sector);
+  addLabel('Producto/Doc:', nc.producto);
+  addLabel('Lote:', nc.lote);
+  addLabel('Detección:', (nc.deteccion || []).join(', '));
+  y += 2;
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  doc.text('Detalle del incidente:', margin, y);
+  y += 5;
+  addParagraph(nc.detalle);
+
+  // SECCION 2: CAUSA RAIZ
+  addSection('02', 'ANALISIS DE CAUSA RAIZ');
+  const cats6m = {
+    'METODO': ['¿Existe procedimiento?','¿El procedimiento detalla claramente la tarea?','¿El procedimiento contempla todas las etapas?','¿Los procedimientos vinculados se mantuvieron igual?','¿Existen formularios de ayuda?'],
+    'MANO DE OBRA': ['¿Personal capacitado?','¿Puede cumplir sin dificultad?','¿Cantidad de personas adecuada?','¿Procedió como habitualmente?','¿Se mantuvo el personal?'],
+    'MATERIALES': ['¿Materiales adecuados?','¿Aprobados por CC?','¿Cumplen especificación?','¿Proveedor habitual?','¿Material adecuado para la tarea?'],
+    'MEDIO AMBIENTE': ['¿Lugar indicado?','¿Área calificada?','¿Limpieza correcta?','¿Condiciones ambientales adecuadas?','¿Lugar adecuado?'],
+    'MAQUINAS': ['¿Equipos adecuados?','¿Calibrados?','¿Mantenimiento preventivo?','¿Personal entrenado?']
+  };
+  if (nc.analisis && Object.keys(nc.analisis).length > 0) {
+    const analisisRows = [];
+    for (const [cat, pregs] of Object.entries(cats6m)) {
+      pregs.forEach(p => {
+        const key = btoa(p).replace(/=/g,'');
+        const val = nc.analisis[key];
+        if (val) analisisRows.push([cat, p, val]);
+      });
     }
-  });
+    if (analisisRows.length > 0) {
+      checkPage(analisisRows.length * 6 + 10);
+      doc.autoTable({
+        head: [['Categoría','Pregunta','Resp.']],
+        body: analisisRows,
+        startY: y,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [80,75,70], fontSize: 7 },
+        columnStyles: { 0: { cellWidth: 28, fontStyle: 'bold' }, 2: { cellWidth: 15, halign: 'center' } }
+      });
+      y = doc.lastAutoTable.finalY + 4;
+    }
+  }
+  y += 2;
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  checkPage(20);
+  doc.text('Causa raíz identificada:', margin, y);
+  y += 5;
+  addParagraph(nc.causaRaiz);
+  addLabel('Fecha análisis:', nc.fechaAnalisis);
+  addLabel('Analizado por:', nc.analizadoPor);
 
-  // Footer
+  // SECCION 3: CRITICIDAD
+  addSection('03', 'CRITICIDAD Y DECISION');
+  addLabel('Severidad:', nc.severidad);
+  addLabel('Probabilidad:', nc.probabilidad);
+  addLabel('Decisión:', nc.decisionCriticidad);
+  addLabel('Impacto otros:', nc.impactoOtros);
+  addLabel('Inicia acción:', (nc.iniciaAccion || []).join(', '));
+
+  // SECCION 4: ACCIONES
+  addSection('04', 'ACCIONES (CAPA)');
+  const acciones = nc.acciones || [];
+  if (acciones.length > 0) {
+    const accRows = acciones.map(a => [
+      a.tipo || '',
+      a.descripcion || '',
+      a.plazo ? new Date(a.plazo).toLocaleDateString('es-AR') : '\u2014',
+      a.responsable || '',
+      a.cumplida || '\u2014'
+    ]);
+    checkPage(accRows.length * 8 + 10);
+    doc.autoTable({
+      head: [['Tipo','Descripción','Plazo','Responsable','Cumplida']],
+      body: accRows,
+      startY: y,
+      margin: { left: margin, right: margin },
+      styles: { fontSize: 8, cellPadding: 2.5 },
+      headStyles: { fillColor: [80,75,70], fontSize: 8 },
+      columnStyles: { 0: { cellWidth: 24 }, 2: { cellWidth: 22 }, 4: { cellWidth: 20, halign: 'center' } }
+    });
+    y = doc.lastAutoTable.finalY + 4;
+  } else {
+    addParagraph('Sin acciones registradas.');
+  }
+
+  // SECCION 5: SEGUIMIENTOS
+  addSection('05', 'SEGUIMIENTOS');
+  const segs = nc.seguimientos || [];
+  if (segs.length > 0) {
+    const segRows = segs.map(s => [s.fecha, s.responsable, s.descripcion]);
+    checkPage(segRows.length * 8 + 10);
+    doc.autoTable({
+      head: [['Fecha','Responsable','Observación']],
+      body: segRows,
+      startY: y,
+      margin: { left: margin, right: margin },
+      styles: { fontSize: 8, cellPadding: 2.5 },
+      headStyles: { fillColor: [80,75,70], fontSize: 8 },
+      columnStyles: { 0: { cellWidth: 24 }, 1: { cellWidth: 35 } }
+    });
+    y = doc.lastAutoTable.finalY + 4;
+  } else {
+    addParagraph('Sin seguimientos registrados.');
+  }
+
+  // SECCION 6: EFECTIVIDAD Y CIERRE
+  addSection('06', 'VERIFICACION DE EFECTIVIDAD Y CIERRE');
+  addLabel('Fecha evaluación:', nc.fechaEvaluacion);
+  addLabel('Evaluador:', nc.evaluador);
+  addLabel('Efectiva:', nc.efectividadOk);
+  y += 2;
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  checkPage(15);
+  doc.text('Comentarios efectividad:', margin, y);
+  y += 5;
+  addParagraph(nc.comentariosEfectividad);
+  addLabel('Fecha cierre:', nc.fechaCierre);
+  addLabel('Cerrado por:', nc.cerradoPor);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  checkPage(15);
+  doc.text('Detalle cierre:', margin, y);
+  y += 5;
+  addParagraph(nc.detalleCierre);
+
+  // FOOTER
   const pageCount = doc.internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
-    doc.setFontSize(8);
+    doc.setFontSize(7);
     doc.setTextColor(150);
-    doc.text(`REG-SOP-AC-036-A | P\u00e1gina ${i} de ${pageCount}`, doc.internal.pageSize.width - 14, doc.internal.pageSize.height - 8, { align: 'right' });
+    doc.text('REG-SOP-AC-036-A | ' + nc.numero + ' | P\u00e1gina ' + i + ' de ' + pageCount, W - margin, doc.internal.pageSize.height - 8, { align: 'right' });
   }
 
-  doc.save(`Reporte_NC_CAPA_${hoy.replace(/\//g,'-')}.pdf`);
-  showToast('PDF exportado \u2714');
+  const filename = nc.numero.replace(/[\\s\\/]/g, '_') + '.pdf';
+  doc.save(filename);
+  showToast('PDF descargado: ' + filename);
 }
 
 // Hide dashboard when opening NC
