@@ -1440,10 +1440,30 @@ async function guardarNC(ncId) {
   nc.fechaCierre            = document.getElementById('f_fechaCierre').value;
   nc.cerradoPor             = document.getElementById('f_cerradoPor').value;
   nc.detalleCierre          = document.getElementById('f_detalleCierre').value;
+  // Read acciones from DOM table
+  const accionesTable = document.querySelector('#accionesTable_' + ncId + ' tbody');
+  if (accionesTable) {
+    const rows = accionesTable.querySelectorAll('tr');
+    rows.forEach((row, i) => {
+      if (!nc.acciones[i]) return;
+      const selects = row.querySelectorAll('select');
+      const inputs = row.querySelectorAll('input');
+      const textareas = row.querySelectorAll('textarea');
+      if (selects[0]) nc.acciones[i].tipo = selects[0].value;
+      if (textareas[0]) nc.acciones[i].descripcion = textareas[0].value;
+      if (inputs[0]) nc.acciones[i].plazo = inputs[0].value;
+      if (inputs[1]) nc.acciones[i].responsable = inputs[1].value;
+      if (selects[1]) nc.acciones[i].cumplida = selects[1].value;
+    });
+  }
+  
+  console.log('Acciones:', JSON.stringify(nc.acciones));
+  
   // Check for new actions with responsable to notify
   const accionesParaNotificar = (nc.acciones || []).filter(a => 
     a.responsable && a.responsable.includes('@') && a.descripcion && a.plazo && !a._notificado
   );
+  console.log('Para notificar:', accionesParaNotificar.length);
   
   showToast('Guardando...');
   const ok = await guardarNC_remoto(nc);
