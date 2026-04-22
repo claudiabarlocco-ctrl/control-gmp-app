@@ -945,6 +945,7 @@ function renderDetalle(nc) {
     ${renderSeccion3(nc)}
     ${renderSeccion4(nc)}
     ${renderSeccion5(nc)}
+    ${renderSeccion6(nc)}
 
     <div class="form-actions">
       <button class="btn btn-primary" onclick="guardarNC(${nc.id})">💾 Guardar cambios</button>
@@ -1313,6 +1314,38 @@ function renderSeccion5(nc) {
   </div>`;
 }
 
+
+function renderSeccion6(nc) {
+  const fotos = (nc.evidencias || []).map((ev,i) => `
+    <div style="display:inline-block;margin:6px;position:relative;border:1px solid var(--border);background:var(--surface2);">
+      <a href="${ev.viewUrl}" target="_blank" title="Ver original">
+        <img src="${ev.thumbUrl}" style="width:140px;height:105px;object-fit:cover;display:block;" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22140%22 height=%22105%22><rect fill=%22%23eee%22 width=%22140%22 height=%22105%22/><text x=%2270%22 y=%2256%22 text-anchor=%22middle%22 font-size=%2212%22 fill=%22%23999%22>Foto</text></svg>'">
+      </a>
+      <div style="padding:4px 6px;font-size:10px;color:var(--text-muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ev.nombre || 'Evidencia'}</div>
+      <button onclick="eliminarEvidencia(${nc.id},${i})" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.6);color:white;border:none;cursor:pointer;font-size:14px;width:20px;height:20px;line-height:20px;text-align:center;border-radius:2px;" title="Eliminar">&times;</button>
+    </div>
+  `).join('') || '<p style="font-size:12px;color:var(--text-muted);">Sin evidencias cargadas.</p>';
+
+  return `
+  <div class="section-card">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title"><span class="section-num">06</span> Evidencias Fotogr\u00e1ficas</div>
+      <span>\u25be</span>
+    </div>
+    <div class="section-body">
+      <div id="evidenciasGrid" style="margin-bottom:12px;">${fotos}</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <label class="btn btn-secondary btn-sm" style="cursor:pointer;">
+          \ud83d\udcf7 Agregar foto
+          <input type="file" accept="image/*" multiple style="display:none;" onchange="subirEvidencias(${nc.id}, this.files)">
+        </label>
+        <span id="uploadStatus" style="font-size:11px;color:var(--text-muted);"></span>
+      </div>
+      <p style="font-size:10px;color:var(--text-muted);margin-top:8px;">Las fotos se comprimen autom\u00e1ticamente (~100KB c/u) y se guardan en Google Drive.</p>
+    </div>
+  </div>`;
+}
+
 // ==================== ACTIONS ====================
 function toggleSection(header) {
   const body = header.nextElementSibling;
@@ -1459,6 +1492,7 @@ async function crearNC() {
     severidad: '', probabilidad: '', decisionCriticidad: '', impactoOtros: '', iniciaAccion: [],
     acciones: [],
     seguimientos: [],
+    evidencias: [],
     fechaEvaluacion: '', efectividadOk: '', evaluador: '', comentariosEfectividad: '',
     fechaCierre: '', cerradoPor: '', detalleCierre: '',
   };
@@ -1813,6 +1847,116 @@ function exportarPDF() {
 function ocultarDashboard() {
   const d = document.getElementById('dashboardView');
   if (d) d.classList.add('hidden');
+}
+
+// ==================== EVIDENCIAS ====================
+async function comprimirImagen(file, maxWidth=600, quality=0.35) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        let w = img.width;
+        let h = img.height;
+        if (w > maxWidth) {
+          h = Math.round(h * maxWidth / w);
+          w = maxWidth;
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const base64 = dataUrl.split(',')[1];
+        const sizeKB = Math.round(base64.length * 3 / 4 / 1024);
+        resolve({ base64, sizeKB, nombre: file.name });
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function subirEvidencias(ncId, files) {
+  const nc = db.ncs.find(n => n.id === ncId);
+  if (!nc) return;
+  if (!nc.evidencias) nc.evidencias = [];
+  
+  const status = document.getElementById('uploadStatus');
+  const total = files.length;
+  
+  for (let i = 0; i < total; i++) {
+    status.textContent = `Comprimiendo y subiendo ${i+1}/${total}...`;
+    
+    try {
+      const compressed = await comprimirImagen(files[i]);
+      status.textContent = `Subiendo ${i+1}/${total} (${compressed.sizeKB}KB)...`;
+      
+      const formData = new URLSearchParams();
+      formData.append('action', 'uploadImg');
+      formData.append('imgData', compressed.base64);
+      formData.append('filename', compressed.nombre);
+      formData.append('ncNumero', nc.numero.replace(/[\s\/]/g, '_'));
+      
+      // POST to Apps Script (handles redirect automatically)
+      let data;
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formData.toString()
+        });
+        data = await res.json();
+      } catch(corsErr) {
+        // If CORS blocks POST, fallback to GET with smaller image
+        const smaller = await comprimirImagen(files[i], 400, 0.25);
+        const getParams = new URLSearchParams({
+          action: 'uploadImg',
+          imgData: smaller.base64,
+          filename: smaller.nombre,
+          ncNumero: nc.numero.replace(/[\s\/]/g, '_')
+        });
+        const res2 = await fetch(API_URL + '?' + getParams.toString());
+        data = await res2.json();
+      }
+      
+      if (data.ok) {
+        nc.evidencias.push({
+          fileId: data.fileId,
+          thumbUrl: data.url,
+          viewUrl: data.viewUrl,
+          nombre: compressed.nombre,
+          fecha: new Date().toISOString().split('T')[0],
+          sizeKB: compressed.sizeKB
+        });
+      } else {
+        showToast('Error al subir ' + compressed.nombre);
+      }
+    } catch(e) {
+      console.error('Error subiendo:', e);
+      showToast('Error al subir imagen');
+    }
+  }
+  
+  // Save NC with new evidencias
+  status.textContent = 'Guardando...';
+  const ok = await guardarNC_remoto(nc);
+  if (ok) {
+    renderDetalle(nc);
+    showToast(total + ' foto(s) subida(s) \u2714');
+  } else {
+    showToast('Error al guardar evidencias');
+  }
+}
+
+async function eliminarEvidencia(ncId, idx) {
+  const nc = db.ncs.find(n => n.id === ncId);
+  if (!nc) return;
+  if (!confirm('\u00bfEliminar esta evidencia?')) return;
+  nc.evidencias.splice(idx, 1);
+  const ok = await guardarNC_remoto(nc);
+  if (ok) renderDetalle(nc);
 }
 
 function showToast(msg) {
