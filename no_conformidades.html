@@ -1440,9 +1440,35 @@ async function guardarNC(ncId) {
   nc.fechaCierre            = document.getElementById('f_fechaCierre').value;
   nc.cerradoPor             = document.getElementById('f_cerradoPor').value;
   nc.detalleCierre          = document.getElementById('f_detalleCierre').value;
+  // Check for new actions with responsable to notify
+  const accionesParaNotificar = (nc.acciones || []).filter(a => 
+    a.responsable && a.responsable.includes('@') && a.descripcion && a.plazo && !a._notificado
+  );
+  
   showToast('Guardando...');
   const ok = await guardarNC_remoto(nc);
-  if (ok) { renderLista(); showToast(`${nc.numero} guardada \u2714`); }
+  if (ok) {
+    // Send notification for new actions
+    if (accionesParaNotificar.length > 0) {
+      try {
+        // Send only un-notified actions
+        const ncForNotify = Object.assign({}, nc, { 
+          acciones: accionesParaNotificar 
+        });
+        const p = new URLSearchParams({ action: 'notifyNew', data: JSON.stringify(ncForNotify) });
+        await fetch(API_URL + '?' + p.toString());
+        // Mark as notified
+        accionesParaNotificar.forEach(a => a._notificado = true);
+        await guardarNC_remoto(nc);
+        showToast(`${nc.numero} guardada \u2714 · ${accionesParaNotificar.length} mail(s) enviado(s)`);
+      } catch(e) {
+        showToast(`${nc.numero} guardada \u2714 (mail no enviado)`);
+      }
+    } else {
+      showToast(`${nc.numero} guardada \u2714`);
+    }
+    renderLista();
+  }
   else showToast('Error al guardar. Intent\u00e1 de nuevo.');
 }
 
