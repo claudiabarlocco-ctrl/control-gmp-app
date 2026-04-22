@@ -636,9 +636,9 @@
     margin-top: 2px;
   }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+<script src="https://unpkg.com/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -1770,6 +1770,19 @@ function renderDashboard() {
 
 // ==================== EXPORTAR PDF ====================
 function exportarPDF() {
+  if (typeof window.jspdf === 'undefined') {
+    showToast('Cargando librería PDF... intentá de nuevo en unos segundos');
+    // Try to load it dynamically
+    const s1 = document.createElement('script');
+    s1.src = 'https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js';
+    s1.onload = function() {
+      const s2 = document.createElement('script');
+      s2.src = 'https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js';
+      document.head.appendChild(s2);
+    };
+    document.head.appendChild(s1);
+    return;
+  }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('landscape', 'mm', 'a4');
   const ncs = db.ncs;
@@ -1885,40 +1898,32 @@ async function subirEvidencias(ncId, files) {
   
   const status = document.getElementById('uploadStatus');
   const total = files.length;
+  let subidas = 0;
   
   for (let i = 0; i < total; i++) {
-    status.textContent = `Comprimiendo y subiendo ${i+1}/${total}...`;
+    status.textContent = 'Comprimiendo ' + (i+1) + '/' + total + '...';
     
     try {
       const compressed = await comprimirImagen(files[i]);
-      status.textContent = `Subiendo ${i+1}/${total} (${compressed.sizeKB}KB)...`;
+      status.textContent = 'Subiendo ' + (i+1) + '/' + total + ' (' + compressed.sizeKB + 'KB)...';
       
-      const formData = new URLSearchParams();
-      formData.append('action', 'uploadImg');
-      formData.append('imgData', compressed.base64);
-      formData.append('filename', compressed.nombre);
-      formData.append('ncNumero', nc.numero.replace(/[\s\/]/g, '_'));
+      // Use Google Apps Script POST via form
+      const ncName = nc.numero.replace(/[\s\/]/g, '_');
+      const formBody = 'action=uploadImg' +
+        '&imgData=' + encodeURIComponent(compressed.base64) +
+        '&filename=' + encodeURIComponent(compressed.nombre) +
+        '&ncNumero=' + encodeURIComponent(ncName);
       
-      // POST to Apps Script (handles redirect automatically)
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formBody
+      });
+      const text = await res.text();
       let data;
-      try {
-        const res = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: formData.toString()
-        });
-        data = await res.json();
-      } catch(corsErr) {
-        // If CORS blocks POST, fallback to GET with smaller image
-        const smaller = await comprimirImagen(files[i], 400, 0.25);
-        const getParams = new URLSearchParams({
-          action: 'uploadImg',
-          imgData: smaller.base64,
-          filename: smaller.nombre,
-          ncNumero: nc.numero.replace(/[\s\/]/g, '_')
-        });
-        const res2 = await fetch(API_URL + '?' + getParams.toString());
-        data = await res2.json();
+      try { data = JSON.parse(text); } catch(e) { 
+        console.error('Response not JSON:', text.substring(0, 200));
+        throw new Error('Respuesta inválida del servidor');
       }
       
       if (data.ok) {
@@ -1930,24 +1935,28 @@ async function subirEvidencias(ncId, files) {
           fecha: new Date().toISOString().split('T')[0],
           sizeKB: compressed.sizeKB
         });
+        subidas++;
       } else {
+        console.error('Upload error:', data.error);
         showToast('Error al subir ' + compressed.nombre);
       }
     } catch(e) {
       console.error('Error subiendo:', e);
-      showToast('Error al subir imagen');
+      showToast('Error: ' + e.message);
     }
   }
   
-  // Save NC with new evidencias
-  status.textContent = 'Guardando...';
-  const ok = await guardarNC_remoto(nc);
-  if (ok) {
-    renderDetalle(nc);
-    showToast(total + ' foto(s) subida(s) \u2714');
-  } else {
-    showToast('Error al guardar evidencias');
+  if (subidas > 0) {
+    status.textContent = 'Guardando...';
+    const ok = await guardarNC_remoto(nc);
+    if (ok) {
+      renderDetalle(nc);
+      showToast(subidas + ' foto(s) subida(s) \u2714');
+    } else {
+      showToast('Error al guardar evidencias');
+    }
   }
+  status.textContent = '';
 }
 
 async function eliminarEvidencia(ncId, idx) {
