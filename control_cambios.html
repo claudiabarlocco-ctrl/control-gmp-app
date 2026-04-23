@@ -235,6 +235,7 @@
   }
   .placeholder h2 { font-size: 16px; font-weight: 500; margin-bottom: 6px; color: var(--text); }
   .placeholder p { font-size: 13px; }
+  .hidden { display: none !important; }
 
   /* CC DETAIL */
   .cc-detail { max-width: 900px; }
@@ -972,9 +973,15 @@ function abrirCC(id) {
   renderLista();
   const cc = db.ccs.find(c => c.id === id);
   if (!cc) return;
-  document.getElementById('placeholder').classList.add('hidden');
-  document.getElementById('ccDetail').classList.remove('hidden');
+  const ph = document.getElementById('placeholder');
+  const det = document.getElementById('ccDetail');
+  ph.classList.add('hidden');
+  ph.style.display = 'none';
+  det.classList.remove('hidden');
+  det.style.display = 'block';
   renderDetalle(cc);
+  window.scrollTo(0, 0);
+  document.querySelector('.main').scrollTop = 0;
 }
 
 function renderDetalle(cc) {
