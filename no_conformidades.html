@@ -808,20 +808,27 @@ async function cargarDatos() {
 
 async function guardarNC_remoto(nc, notificar=false) {
   try {
-    const params = new URLSearchParams({ action: 'save', data: JSON.stringify(nc) });
     console.log('Guardando NC:', nc.numero);
-    const res = await fetch(API_URL + '?' + params.toString());
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'action=save&data=' + encodeURIComponent(JSON.stringify(nc))
+    });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     console.log('Respuesta:', data);
     if (data.ok && notificar) {
       try {
-        const p2 = new URLSearchParams({ action: 'notifyNew', data: JSON.stringify(nc) });
-        await fetch(API_URL + '?' + p2.toString());
+        await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'action=notifyNew&data=' + encodeURIComponent(JSON.stringify(nc))
+        });
       } catch(e) { /* mail error no bloquea */ }
     }
     return data.ok;
   } catch(e) {
+    console.error('Error guardando:', e);
     showToast('Error al guardar. Verificá la conexión.');
     return false;
   }
@@ -829,7 +836,11 @@ async function guardarNC_remoto(nc, notificar=false) {
 
 async function eliminarNC_remoto(id) {
   try {
-    const res = await fetch(`${API_URL}?action=delete&id=${id}`);
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'action=delete&id=' + encodeURIComponent(id)
+    });
     const data = await res.json();
     return data.ok;
   } catch(e) {
@@ -1476,8 +1487,11 @@ async function guardarNC(ncId) {
         const ncForNotify = Object.assign({}, nc, { 
           acciones: accionesParaNotificar 
         });
-        const p = new URLSearchParams({ action: 'notifyNew', data: JSON.stringify(ncForNotify) });
-        await fetch(API_URL + '?' + p.toString());
+        await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'action=notifyNew&data=' + encodeURIComponent(JSON.stringify(ncForNotify))
+        });
         // Mark as notified
         accionesParaNotificar.forEach(a => a._notificado = true);
         await guardarNC_remoto(nc);
