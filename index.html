@@ -244,7 +244,10 @@ const LIMP_DEFECTS=[
   <!-- Shift banner -->
   <div class="sb" id="shiftBan">
     <div class="sb-info">📅 <b id="shiftDate"></b> · 👤 <b id="shiftUser"></b> · <span id="shiftCount">0</span> controles</div>
-    <button class="btn b2" onclick="endShift()" style="padding:5px 10px;font-size:9px">🏁 Cerrar turno</button>
+    <div style="display:flex;gap:5px">
+      <button class="btn b2" onclick="loadShiftFromSheet()" style="padding:5px 10px;font-size:9px" title="Sincronizar con otros analistas">🔄</button>
+      <button class="btn b2" onclick="endShift()" style="padding:5px 10px;font-size:9px">🏁</button>
+    </div>
   </div>
 
   <!-- Timeline -->
@@ -403,14 +406,78 @@ let USER='',shift=null,ctrls=[],allR=[],curSlot=0,fotos=[null,null,null],hasDev=
 (function(){['cMaq','dMaq'].forEach(id=>{const s=document.getElementById(id);MACHINES.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;s.appendChild(o)})})})();
 
 // LOGIN
-function doLogin(){const n=document.getElementById('loginName').value.trim();if(!n){toast('Ingresa tu nombre',true);return}USER=n;localStorage.setItem('gmp_user',n);document.getElementById('loginScreen').style.display='none';document.getElementById('mainApp').style.display='block';document.getElementById('hdrU').textContent=USER;loadSheet();
-const sv=localStorage.getItem('gmp_shift');if(sv){try{const d=JSON.parse(sv);shift=d.shift;ctrls=d.ctrls||[];maqCache=d.maqCache||{};initShift()}catch(e){startNewShift()}}else startNewShift()}
+function doLogin(){const n=document.getElementById('loginName').value.trim();if(!n){toast('Ingresa tu nombre',true);return}USER=n;localStorage.setItem('gmp_user',n);document.getElementById('loginScreen').style.display='none';document.getElementById('mainApp').style.display='block';document.getElementById('hdrU').textContent=USER;
+// Always start a new local shift for today and load any controls from the Sheet
+shift={fecha:new Date().toISOString().slice(0,10),analista:USER};ctrls=[];maqCache={};saveLocal();initShift();
+loadShiftFromSheet();
+}
 function logout(){USER='';localStorage.removeItem('gmp_user');location.reload()}
 (function(){const u=localStorage.getItem('gmp_user');if(u){document.getElementById('loginName').value=u;doLogin()}})();
 
+// Load today's controls from Google Sheets (shared shift)
+function loadShiftFromSheet(){
+  if(!SURL)return;
+  fetch(SURL).then(r=>r.json()).then(d=>{
+    if(d.status!=='ok'||!d.records)return;
+    const today=new Date().toISOString().slice(0,10);
+    // Filter records for today
+    const todayCtrls=d.records.filter(r=>{
+      const f=r.fecha||'';let dt=null;
+      if(typeof f==='string'){
+        const iso=f.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if(iso)dt=iso[1]+'-'+iso[2]+'-'+iso[3];
+        if(!dt){const p=f.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+          if(p)dt=p[3]+'-'+p[2].padStart(2,'0')+'-'+p[1].padStart(2,'0')}
+      }
+      return dt===today;
+    });
+    if(todayCtrls.length===0){
+      // No shift open, load all records for dashboard
+      allR=d.records;allR.forEach(r=>{r.promedio=r.promedio!=null?String(r.promedio):'';r.ph=r.ph!=null?String(r.ph):'';r.maquina=r.maquina?String(r.maquina).trim():'';r.presentacion=r.presentacion?String(r.presentacion).trim():'';r.lote=r.lote?String(r.lote).trim():'';r.analista=r.analista?String(r.analista).trim():'';if(r.pesos)r.pesos=r.pesos.map(p=>p!=null?String(p):'')});
+      return;
+    }
+    // Sort by control number ascending
+    todayCtrls.sort((a,b)=>(parseInt(a.controlNum)||0)-(parseInt(b.controlNum)||0));
+    // Convert sheet records to local control format
+    ctrls=todayCtrls.map(r=>({
+      hora:String(r.hora||''),
+      maquina:String(r.maquina||'').trim(),
+      presentacion:String(r.presentacion||'').trim(),
+      lote:String(r.lote||'').trim(),
+      orden:String(r.orden||'').trim(),
+      vence:String(r.vence||'').trim(),
+      granel:String(r.granel||'').trim(),
+      codPT:String(r.codPT||'').trim(),
+      ph:String(r.ph||''),
+      pesos:(r.pesos||['','','','','']).map(p=>p!=null?String(p):''),
+      promedio:String(r.promedio||''),
+      checks:Array.isArray(r.checks)?r.checks:[],
+      hasDev:r.hasDev===true||r.hasDev==='SÍ',
+      devDesc:String(r.devDesc||''),
+      devQty:String(r.devQty||''),
+      isRep:r.isRep===true||r.isRep==='SÍ',
+      fotos:[],
+      obs:String(r.obs||''),
+      timestamp:r.fecha+' '+r.hora,
+      analista:String(r.analista||'').trim(),
+      isLimp:String(r.maquina||'').trim()==='Limpiadores',
+      limpDefects:[],
+      fromSheet:true
+    }));
+    // Rebuild maqCache from previous controls
+    ctrls.forEach(c=>{
+      if(c.maquina)maqCache[c.maquina]={pres:c.presentacion,cLote:c.lote,cOrden:c.orden,cVence:c.vence,cGranel:c.granel,cCodPT:c.codPT};
+    });
+    saveLocal();initShift();
+    // Also keep allR for dashboard
+    allR=d.records;allR.forEach(r=>{r.promedio=r.promedio!=null?String(r.promedio):'';r.ph=r.ph!=null?String(r.ph):'';r.maquina=r.maquina?String(r.maquina).trim():'';r.presentacion=r.presentacion?String(r.presentacion).trim():'';r.lote=r.lote?String(r.lote).trim():'';r.analista=r.analista?String(r.analista).trim():'';if(r.pesos)r.pesos=r.pesos.map(p=>p!=null?String(p):'')});
+    toast('🔄 '+ctrls.length+' controles del turno cargados');
+  }).catch(()=>{});
+}
+
 function startNewShift(){shift={fecha:new Date().toISOString().slice(0,10),analista:USER};ctrls=[];maqCache={};saveLocal();initShift()}
 function initShift(){document.getElementById('shiftDate').textContent=shift.fecha;document.getElementById('shiftUser').textContent=USER;document.getElementById('shiftCount').textContent=ctrls.length;document.getElementById('hdrInfo').textContent=shift.fecha;renderTL()}
-function endShift(){if(!confirm('¿Cerrar turno? Se inicia uno nuevo.'))return;shift=null;ctrls=[];maqCache={};localStorage.removeItem('gmp_shift');startNewShift();toast('🏁 Turno cerrado')}
+function endShift(){if(!confirm('¿Salir del turno? Los controles ya cargados quedan guardados en Google Sheets. Esto solo limpia tu pantalla.'))return;shift=null;ctrls=[];maqCache={};localStorage.removeItem('gmp_shift');startNewShift();toast('🏁 Pantalla limpiada')}
 function saveLocal(){localStorage.setItem('gmp_shift',JSON.stringify({shift,ctrls,maqCache}))}
 
 // TABS
@@ -486,13 +553,18 @@ const dl=document.getElementById('limpDefList');if(dl)dl.innerHTML='';
 ['cLimpUds','cLimpMotivo','cLimpAccion'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''})}
 
 function saveCtrl(){
-  const maq=document.getElementById('cMaq').value;if(!maq){toast('Elegí máquina',true);return}
-  const lote=document.getElementById('cLote').value;if(!lote){toast('Ingresá N° Lote',true);return}
+  const maq=document.getElementById('cMaq').value;if(!maq){toast('⚠️ Elegí máquina',true);return}
+  const pres=document.getElementById('cPres').value;if(!pres){toast('⚠️ Elegí presentación',true);return}
+  const lote=document.getElementById('cLote').value.trim();if(!lote){toast('⚠️ Ingresá N° Lote',true);return}
+  const orden=document.getElementById('cOrden').value.trim();if(!orden){toast('⚠️ Ingresá N° Orden',true);return}
+  const vence=document.getElementById('cVence').value.trim();if(!vence){toast('⚠️ Ingresá Vencimiento',true);return}
+  const granel=document.getElementById('cGranel').value.trim();if(!granel){toast('⚠️ Ingresá Cód. Granel',true);return}
+  const codPT=document.getElementById('cCodPT').value.trim();if(!codPT){toast('⚠️ Ingresá Cód. PT',true);return}
   const isLimp=maq==='Limpiadores';
   const pesos=isLimp?['','','','','']:[1,2,3,4,5].map(i=>document.getElementById('cP'+i).value);
   const vs=pesos.map(Number).filter(v=>!isNaN(v)&&v>0);
+  if(!isLimp&&vs.length===0){toast('⚠️ Ingresá al menos un peso',true);return}
   const prom=vs.length?(vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(2):'';
-  const pres=document.getElementById('cPres').value;
   let limpDefects=[],limpUds='',limpMotivo='',limpAccion='';
   if(isLimp){
     LIMP_DEFECTS.forEach((d,i)=>{const cb=document.getElementById('ld'+i);const qty=document.getElementById('ldq'+i);if(cb&&cb.checked)limpDefects.push(d+(qty&&qty.value?' ('+qty.value+')':''))});
@@ -500,8 +572,8 @@ function saveCtrl(){
     limpMotivo=document.getElementById('cLimpMotivo')?document.getElementById('cLimpMotivo').value:'';
     limpAccion=document.getElementById('cLimpAccion')?document.getElementById('cLimpAccion').value:'';
   }
-  const c={hora:document.getElementById('cHora').value,maquina:maq,presentacion:pres,lote,orden:document.getElementById('cOrden').value,vence:document.getElementById('cVence').value,granel:document.getElementById('cGranel').value,codPT:document.getElementById('cCodPT').value,ph:isLimp?'':document.getElementById('cPH').value,pesos,promedio:prom,checks:isLimp?[]:([...document.querySelectorAll('#cChk .ci.on .ct')].map(l=>l.textContent)),hasDev,devDesc:hasDev?document.getElementById('cDevD').value:'',devQty:hasDev?document.getElementById('cDevQ').value:'',isRep:hasDev?isRep:false,fotos:fotos.filter(Boolean),obs:document.getElementById('cObs').value,timestamp:new Date().toLocaleString('es-ES'),isLimp,limpDefects,limpUds,limpMotivo,limpAccion};
-  maqCache[maq]={pres,cLote:lote,cOrden:c.orden,cVence:c.vence,cGranel:c.granel,cCodPT:c.codPT};
+  const c={hora:document.getElementById('cHora').value,maquina:maq,presentacion:pres,lote,orden,vence,granel,codPT,ph:isLimp?'':document.getElementById('cPH').value,pesos,promedio:prom,checks:isLimp?[]:([...document.querySelectorAll('#cChk .ci.on .ct')].map(l=>l.textContent)),hasDev,devDesc:hasDev?document.getElementById('cDevD').value:'',devQty:hasDev?document.getElementById('cDevQ').value:'',isRep:hasDev?isRep:false,fotos:fotos.filter(Boolean),obs:document.getElementById('cObs').value,timestamp:new Date().toLocaleString('es-ES'),analista:USER,isLimp,limpDefects,limpUds,limpMotivo,limpAccion};
+  maqCache[maq]={pres,cLote:lote,cOrden:orden,cVence:vence,cGranel:granel,cCodPT:codPT};
   ctrls.push(c);saveLocal();sendCtrl(c,ctrls.length);
   document.getElementById('cForm').style.display='none';document.getElementById('newBtn').style.display='block';
   document.getElementById('shiftCount').textContent=ctrls.length;renderTL();toast('✅ Control #'+ctrls.length)}
@@ -519,7 +591,8 @@ function renderTL(){
       ?`Lote: ${c.lote} · Defectos: ${(c.limpDefects||[]).length||'0'}`
       :`Lote: ${c.lote} · Pesos: ${(c.pesos||[]).filter(p=>p).join('|')||'—'} → <b>${c.promedio||'—'}</b>${ph}`;
     const limpTags=isL?(c.limpDefects||[]).map(d=>`<span class="ti-tag red">${d}</span>`).join(''):'';
-    return `<div class="ti" onclick="viewC(${i})"><div class="ti-h"><span class="ti-t">🕐 ${c.hora||'--:--'}</span><span class="ti-m">${c.maquina} · ${c.presentacion||''}</span></div><div class="ti-d">${dataLine}</div><div class="ti-tags">${tags}${limpTags}${dev}</div></div>`}).join('')}
+    const ana=c.analista?`<span style="color:var(--text3);font-size:9px"> · 👤 ${c.analista}</span>`:'';
+    return `<div class="ti" onclick="viewC(${i})"><div class="ti-h"><span class="ti-t">🕐 ${c.hora||'--:--'}${ana}</span><span class="ti-m">${c.maquina} · ${c.presentacion||''}</span></div><div class="ti-d">${dataLine}</div><div class="ti-tags">${tags}${limpTags}${dev}</div></div>`}).join('')}
 
 // SHEETS
 function sendCtrl(c,num){if(!SURL)return;const pd=(c.fotos||[]).map(p=>p.replace(/^data:image\/\w+;base64,/,''));
