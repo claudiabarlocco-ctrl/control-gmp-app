@@ -160,7 +160,7 @@ const SPECS={
   ],
   'Hipo 1':[{pres:'1 L',obj:1056,min:1056,max:1087},{pres:'750 ml',obj:792,min:792,max:800}],
   'Hipo 2':[{pres:'2 L',obj:2112,min:2112,max:2175}],
-  'Alcoholes':[{pres:'900 ml',obj:774,min:774,max:800}],
+  'Alcoholes':[{pres:'900 ml',obj:774,min:774,max:800},{pres:'600 ml',obj:530,min:520,max:535}],
   'Bidonera':[{pres:'1 L',obj:970,min:970,max:1000}],
   'Alwid':[{pres:'1.25 L',obj:1275,min:1275,max:1289}],
   'Cleanway':[{pres:'5 L Detergente',obj:5105,min:5105,max:5156},{pres:'5 L Suavizante',obj:5000,min:5000,max:5100},{pres:'4 L',obj:4224,min:4224,max:4300},{pres:'5 L Limpiadores',obj:5000,min:5000,max:5100}],
@@ -563,7 +563,7 @@ function saveCtrl(){
   const isLimp=maq==='Limpiadores';
   const pesos=isLimp?['','','','','']:[1,2,3,4,5].map(i=>document.getElementById('cP'+i).value);
   const vs=pesos.map(Number).filter(v=>!isNaN(v)&&v>0);
-  if(!isLimp&&vs.length===0){toast('⚠️ Ingresá al menos un peso',true);return}
+  // Pesos no son obligatorios (línea puede estar parada)
   const prom=vs.length?(vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(2):'';
   let limpDefects=[],limpUds='',limpMotivo='',limpAccion='';
   if(isLimp){
